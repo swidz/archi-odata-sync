@@ -83,3 +83,7 @@ npm run check
 ```
 
 There are no npm dependencies. See [verification](docs/verification.md) for real Archi, dialog and HTTP tests. See [design and sources](docs/design.md) for the module boundaries and protocol references.
+
+## License
+
+Copyright (c) 2026 Sebastian Widz. Licensed under the [MIT License](LICENSE).
