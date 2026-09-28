@@ -1,0 +1,38 @@
+/* Short-lived SWT dialogs driven by native events in an isolated test process. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "java-runtime", "ui"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var SWT = Java.type("org.eclipse.swt.SWT"), Event = Java.type("org.eclipse.swt.widgets.Event"), display = Java.type("org.eclipse.swt.widgets.Display").getDefault(), checks = [], error;
+    function ok(v, message) { ODataCore.assert(v, message); checks.push(message); }
+    function walk(w, list) { list.push(w); if (w.getChildren) Java.from(w.getChildren()).forEach(function (child) { walk(child, list); }); return list; }
+    function type(w) { return String(w.getClass().getSimpleName()); }
+    function button(widgets, name) { return widgets.filter(function (w) { return type(w) === "Button" && String(w.getText()) === name; })[0]; }
+    function click(w) { w.notifyListeners(SWT.Selection, new Event()); }
+    function automate(title, action) { display.timerExec(250, function () {
+        var d = Java.from(display.getShells()).filter(function (s) { return String(s.getText()) === title; })[0];
+        try { ok(!!d, "Dialog opened: " + title); action(d, walk(d, [])); }
+        catch (e) { error = e; if (d && !d.isDisposed()) d.close(); }
+    }); }
+    var rows = [{id: "Customers", name: "Customers", type: "Demo.Customer", status: "2 fields", available: true}, {id: "Orders", name: "Orders", type: "Demo.Order", status: "3 fields", available: true}, {id: "Missing", name: "Missing", status: "Type missing", available: false}];
+    automate("Select OData entities", function (d, w) {
+        var search = w.filter(function (x) { return type(x) === "Text"; })[0], table = w.filter(function (x) { return type(x) === "Table"; })[0];
+        ok(table.getItemCount() === 3, "Popup lists every advertised entity");
+        search.setText("Orders"); ok(table.getItemCount() === 1, "Search filters rows"); click(button(w, "Select filtered")); search.setText("");
+        table.getColumn(0).notifyListeners(SWT.Selection, new Event());
+        ok(Java.from(table.getItems()).filter(function (i) { return i.getChecked(); }).length === 2, "Selection survives search and sorting");
+        var missing = Java.from(table.getItems()).filter(function (i) { return String(i.getData()) === "Missing"; })[0];
+        missing.setChecked(true); var event = new Event(); event.item = missing; event.detail = SWT.CHECK; table.notifyListeners(SWT.Selection, event);
+        ok(!missing.getChecked(), "Unavailable metadata rows cannot be checked"); click(button(w, "Synchronize"));
+    });
+    var result = ODataUI.entities(rows, ["Customers"]); if (error) throw error;
+    ok(result.length === 2, "Popup returns two selected entities");
+    automate("Select OData entities", function (d, w) { click(button(w, "Clear selection")); ok(!button(w, "Synchronize").getEnabled(), "Empty selection cannot synchronize"); click(button(w, "Cancel")); });
+    result = ODataUI.entities(rows, ["Customers"]); if (error) throw error; ok(result === null, "Cancel returns null");
+    automate("OData credentials", function (d, w) {
+        var text = w.filter(function (x) { return type(x) === "Text"; })[0]; ok((Number(text.getStyle()) & Number(SWT.PASSWORD)) !== 0, "Bearer token entry is masked");
+        text.setText("synthetic-token"); click(button(w, "Continue"));
+    });
+    result = ODataUI.credentials("Bearer token"); if (error) throw error; ok(result.secret === "synthetic-token", "Credential dialog returns runtime-only token"); result.secret = "";
+    ODataJava.write(root + "/work/ui-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_UI_SMOKE_PASSED: " + checks.length);
+}());

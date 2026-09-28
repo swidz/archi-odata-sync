@@ -1,0 +1,12 @@
+/* Optional anonymous integration check against the public OData TripPin sample. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "java-runtime", "archi-adapter"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var url = "https://services.odata.org/V4/TripPinServiceRW/", rows = ODataJava.discover(url, {header: ""}, {}, console.log);
+    ODataCore.assert(rows.length && rows.every(function (r) { return r.available; }), "Public sample discovery incomplete.");
+    var people = rows.filter(function (r) { return r.name === "People"; });
+    ODataCore.assert(people.length === 1 && people[0].fields.length, "People entity metadata missing.");
+    var m = $.model.create("OData TripPin disposable model"), plan = ODataArchi.prepare(m, url, people, {}), result = ODataArchi.apply(m, plan);
+    ODataJava.write(root + "/work/live-smoke-result.json", JSON.stringify({status: "passed", service: url, entitiesDiscovered: rows.length, fields: people[0].fields.length, result: result}, null, 2));
+    console.log("ODATA_LIVE_SMOKE_PASSED: " + rows.length + " entities; " + people[0].fields.length + " People fields");
+}());

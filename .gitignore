@@ -1,0 +1,6 @@
+work/
+node_modules/
+*.archimate
+*.zip
+.env*
+*.log

@@ -1,0 +1,57 @@
+/* Run in a disposable Archi command-line process. Never opens a user model. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "java-runtime", "archi-adapter"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var C = ODataCore, J = ODataJava, A = ODataArchi, checks = [];
+    function ok(value, message) { C.assert(value, message); checks.push(message); }
+    function read(path) { return String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + path))); }
+    var metadata = J.parseMetadata(read("/tests/fixtures/metadata.xml")), service = JSON.parse(read("/tests/fixtures/service.json"));
+    var url = J.normalizeUrl("https://EXAMPLE.test:443/odata/$metadata"), rows = C.discover(service, metadata, url, J.endpoint);
+    ok(rows.length === 2 && rows.every(function (r) { return r.available; }), "Real Java XML parser resolves advertised entity sets");
+    ok(rows[0].fields.length === 7 && rows[0].fields[0].key, "Inherited keys and complex fields resolve through aliases");
+    ok(rows[0].fields.filter(function (f) { return f.path === "Balance"; })[0].precision === "18", "CSDL field facets are retained");
+    var blocked = false; try { J.parseMetadata('<!DOCTYPE x [<!ENTITY e SYSTEM "file:///never-read-this">]><x>&e;</x>'); } catch (e) { blocked = true; }
+    ok(blocked, "XML DTD/external entity inputs are rejected");
+    blocked = false; try { J.validateAuth("http://example.test/", {header: "Bearer synthetic"}); } catch (e) { blocked = true; }
+    ok(blocked, "Credentials cannot be sent over public HTTP");
+    ok(J.basic("demo", "password") === "Basic ZGVtbzpwYXNzd29yZA==", "Basic authentication is correctly encoded");
+    var m = $.model.create("OData disposable smoke test"); m.setAsCurrent();
+    var unwrap = Java.type("com.archimatetool.script.dom.model.ArchimateModelProxy").class.getDeclaredMethod("getEObject", Java.to([], "java.lang.Class[]"));
+    unwrap.setAccessible(true); var raw = unwrap.invoke(m), Stack = Java.type("org.eclipse.gef.commands.CommandStack"), stack = new Stack(); raw.setAdapter(Stack.class, stack);
+    function sync(selected, serviceUrl) { var p = A.prepare(m, serviceUrl || url, selected, {}); return A.apply(m, p); }
+    function concept(name, role, serviceUrl) { return A.index(m)[C.key(serviceUrl || url, name, role)]; }
+    var first = sync([rows[0]]), intf = concept("Customers", "interface"), data = concept("Customers", "data"), rel = concept("Customers", "access");
+    ok(first.created === 2 && String(intf.type) === "application-interface" && String(data.type) === "data-object", "Creates Application Interface and Data Object");
+    ok(String(intf.name) === "Customers" && String(data.name) === "Customers", "Both elements use the entity-set name");
+    ok(String(rel.accessType) === "readwrite" && String(rel.source.id) === String(intf.id) && String(rel.target.id) === String(data.id), "Access direction is Interface to Data Object with Read/Write");
+    ok(String($(intf).parent().first().name) === url && String($(data).parent().first().id) === String($(intf).parent().first().id), "Both elements are organized under the service folder");
+    ok(String(data.documentation).indexOf("1. **Id**") >= 0 && String(data.documentation).indexOf("Address\\.City") >= 0, "Data Object documentation contains numbered field markup");
+    var intfId = String(intf.id), dataId = String(data.id), relId = String(rel.id);
+    var view = m.createArchimateView("Existing diagram"), visual = view.add(intf, 30, 40, 150, 70);
+    data.documentation = "Architect notes\n\n" + data.documentation; data.prop("Manual", "keep");
+    sync([rows[0]]);
+    ok(Object.keys(A.index(m)).length === 3 && String(concept("Customers", "interface").id) === intfId && String(concept("Customers", "data").id) === dataId && String(concept("Customers", "access").id) === relId, "Repeat sync retains all IDs despite diagram instances");
+    ok(String(data.documentation).indexOf("Architect notes") === 0 && String(data.prop("Manual")) === "keep" && Number(visual.bounds.x) === 30, "Manual notes, properties and diagram layout survive refresh");
+    var oldDocumentation = String(data.documentation), oldTime = String(data.prop("OData-LastSyncAt"));
+    sync([rows[1]]);
+    ok(Object.keys(A.index(m)).length === 6 && String(data.documentation) === oldDocumentation && String(data.prop("OData-LastSyncAt")) === oldTime, "A different selection preserves earlier entities untouched");
+    ok(A.saved(m)[url].join(",") === "Orders", "Selection is remembered per service");
+    var changed = Object.assign({}, rows[0], {fields: rows[0].fields.filter(function (f) { return f.path !== "Balance"; })}); sync([changed]);
+    ok(String(data.documentation).indexOf("**Balance**") < 0 && String(data.documentation).indexOf("Architect notes") === 0, "Metadata refresh removes old fields and keeps manual notes");
+    sync([rows[0]], "https://another.example.test/odata/");
+    ok(String(concept("Customers", "data", "https://another.example.test/odata/").id) !== dataId, "Same-named entities from different services remain distinct");
+    var duplicate = m.createElement("data-object", "Duplicate"); duplicate.prop("OData-ManagedBy", C.OWNER); duplicate.prop("OData-Key", C.key(url, "Customers", "data"));
+    blocked = false; try { A.prepare(m, url, [rows[0]], {}); } catch (e) { blocked = true; }
+    ok(blocked, "Duplicate managed identity blocks preflight"); duplicate.delete();
+    data.documentation = "<!-- archi-odata-sync:begin -->"; blocked = false;
+    try { A.prepare(m, url, [rows[0]], {}); } catch (e) { blocked = true; }
+    ok(blocked, "Broken documentation markers block preflight"); data.documentation = oldDocumentation;
+    var Handler = Java.type("com.archimatetool.script.commands.CommandHandler"); Handler.finalise(); Handler.init();
+    var undoRoot = "https://undo.example.test/odata/"; sync([rows[0]], undoRoot); Handler.finalise();
+    var undoId = String(concept("Customers", "data", undoRoot).id);
+    ok(stack.canUndo(), "Synchronization creates a native Undo operation"); stack.undo();
+    ok(!concept("Customers", "data", undoRoot) && !A.saved(m)[undoRoot], "Undo removes the imported pair and restores saved selection"); stack.redo();
+    ok(String(concept("Customers", "data", undoRoot).id) === undoId && String(concept("Customers", "access", undoRoot).accessType) === "readwrite", "Redo restores element IDs and Read/Write Access"); Handler.init();
+    J.write(root + "/work/archi-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_ARCHI_SMOKE_PASSED: " + checks.length);
+}());

@@ -1,0 +1,20 @@
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "java-runtime"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var J = ODataJava, C = ODataCore, checks = [];
+    var base = String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + "/work/http-fixture-url.txt")));
+    function ok(value, message) { C.assert(value, message); checks.push(message); }
+    function get(path, settings) { return J.get(base, base + path, "application/json", {header: ""}, settings || {}); }
+    var rows = J.discover(base + "odata/", {header: ""}, {}, function () {});
+    ok(rows.length === 2 && rows.every(function (r) { return r.available; }), "HTTP service and XML metadata produce complete discovery");
+    ok(J.discover(base + "bearer/", {header: "Bearer synthetic-test-token"}, {}, function () {}).length === 2, "Bearer credentials reach service and metadata requests");
+    ok(J.discover(base + "basic/", {header: J.basic("demo", "password")}, {}, function () {}).length === 2, "Basic credentials reach service and metadata requests");
+    ok(JSON.parse(get("redirect/")).value.length === 3, "Same-origin HTTP redirect works");
+    function rejected(path, settings, match) { var message = ""; try { get(path, settings); } catch (e) { message = String(e.message || e); } ok(message.indexOf(match) >= 0, "Rejected response: " + path); return message; }
+    rejected("cross/", {}, "different origin");
+    var denied = rejected("denied/", {}, "401"); ok(denied.indexOf("Sensitive") < 0, "Error messages omit response bodies");
+    rejected("large/", {maxResponseBytes: 1000}, "size limit");
+    rejected("slow/", {requestTimeoutSeconds: 1}, "timed out");
+    J.write(root + "/work/http-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_HTTP_SMOKE_PASSED: " + checks.length);
+}());

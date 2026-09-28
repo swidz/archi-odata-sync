@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="Demo" Alias="D" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="Base"><Key><PropertyRef Name="Id"/></Key><Property Name="Id" Type="Edm.Int64" Nullable="false"/></EntityType>
+      <EntityType Name="Customer" BaseType="D.Base">
+        <Property Name="Name" Type="Edm.String" MaxLength="120"><Annotation Term="Org.OData.Core.V1.Description" String="Customer &lt;name&gt;"/></Property>
+        <Property Name="Address" Type="D.Address"/>
+        <Property Name="Balance" Type="Edm.Decimal" Precision="18" Scale="2"/>
+        <Property Name="Tags" Type="Collection(Edm.String)" Nullable="false"/>
+        <Property Name="State" Type="D.State" Nullable="false"/>
+        <NavigationProperty Name="Orders" Type="Collection(D.Order)"/>
+      </EntityType>
+      <EntityType Name="Order"><Key><PropertyRef Name="OrderId"/></Key><Property Name="OrderId" Type="Edm.Int32" Nullable="false"/></EntityType>
+      <ComplexType Name="Address"><Property Name="City" Type="Edm.String"/></ComplexType>
+      <EnumType Name="State"><Member Name="Active" Value="1"/><Member Name="Inactive" Value="2"/></EnumType>
+      <EntityContainer Name="Service">
+        <EntitySet Name="Customers" EntityType="D.Customer"/>
+        <EntitySet Name="Orders" EntityType="D.Order"/>
+        <EntitySet Name="Hidden" EntityType="D.Customer" IncludeInServiceDocument="false"/>
+        <Singleton Name="CurrentCustomer" Type="D.Customer"/>
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

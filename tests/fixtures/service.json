@@ -1,0 +1,8 @@
+{
+  "@odata.context": "https://example.test/odata/$metadata",
+  "value": [
+    {"name": "Customers", "kind": "EntitySet", "url": "Customers", "title": "Customer records"},
+    {"name": "Orders", "url": "Orders"},
+    {"name": "CurrentCustomer", "kind": "Singleton", "url": "CurrentCustomer"}
+  ]
+}
