@@ -24,17 +24,31 @@
     ok(first.created === 2 && String(intf.type) === "application-interface" && String(data.type) === "data-object", "Creates Application Interface and Data Object");
     ok(String(intf.name) === "Customers" && String(data.name) === "Customers", "Both elements use the entity-set name");
     ok(String(rel.accessType) === "readwrite" && String(rel.source.id) === String(intf.id) && String(rel.target.id) === String(data.id), "Access direction is Interface to Data Object with Read/Write");
-    ok(String($(intf).parent().first().name) === url && String($(data).parent().first().id) === String($(intf).parent().first().id), "Both elements are organized under the service folder");
+    function parent(e) { return $(e).parent().first(); }
+    ok(String(parent(intf).name) === "API" && String(parent(data).name) === "Entities" && String(parent(parent(intf)).name) === url && String(parent(parent(intf)).id) === String(parent(parent(data)).id), "Interfaces and Data Objects use API and Entities beneath the same service folder");
+    ok(String(parent(rel).name) === url && String(parent(parent(rel)).name) === "OData", "Access relationships stay under Relations/OData/service URL");
     ok(String(data.documentation).indexOf("1. **Id**") >= 0 && String(data.documentation).indexOf("Address\\.City") >= 0, "Data Object documentation contains numbered field markup");
     var intfId = String(intf.id), dataId = String(data.id), relId = String(rel.id);
     var view = m.createArchimateView("Existing diagram"), visual = view.add(intf, 30, 40, 150, 70);
     data.documentation = "Architect notes\n\n" + data.documentation; data.prop("Manual", "keep");
-    sync([rows[0]]);
+    // Reproduce an existing pre-grouping model and migrate it through ordinary sync.
+    var legacyService = parent(parent(intf)), oldApi = parent(intf), oldEntities = parent(data);
+    legacyService.add(intf); legacyService.add(data); oldApi.delete(); oldEntities.delete();
+    var Handler = Java.type("com.archimatetool.script.commands.CommandHandler"); Handler.finalise(); Handler.init();
+    sync([rows[0]]); Handler.finalise();
+    ok(String(parent(intf).name) === "API" && String(parent(data).name) === "Entities", "Resync moves legacy elements into type subfolders");
+    var apiId = String(parent(intf).id), entitiesId = String(parent(data).id);
+    stack.undo();
+    ok(String(parent(intf).id) === String(legacyService.id) && String(parent(data).id) === String(legacyService.id), "Undo restores the original service-level folders");
+    stack.redo(); Handler.init();
+    ok(String(parent(intf).id) === apiId && String(parent(data).id) === entitiesId && String(rel.id) === relId, "Redo restores type folders while retaining relationship identity");
     ok(Object.keys(A.index(m)).length === 3 && String(concept("Customers", "interface").id) === intfId && String(concept("Customers", "data").id) === dataId && String(concept("Customers", "access").id) === relId, "Repeat sync retains all IDs despite diagram instances");
     ok(String(data.documentation).indexOf("Architect notes") === 0 && String(data.prop("Manual")) === "keep" && Number(visual.bounds.x) === 30, "Manual notes, properties and diagram layout survive refresh");
-    var oldDocumentation = String(data.documentation), oldTime = String(data.prop("OData-LastSyncAt"));
+    sync([rows[0]]);
+    ok(String(parent(intf).id) === apiId && String(parent(data).id) === entitiesId, "Repeated sync reuses the same type folders");
+    var oldDocumentation = String(data.documentation), oldTime = String(data.prop("OData-LastSyncAt")), oldParent = String(parent(data).id);
     sync([rows[1]]);
-    ok(Object.keys(A.index(m)).length === 6 && String(data.documentation) === oldDocumentation && String(data.prop("OData-LastSyncAt")) === oldTime, "A different selection preserves earlier entities untouched");
+    ok(Object.keys(A.index(m)).length === 6 && String(data.documentation) === oldDocumentation && String(data.prop("OData-LastSyncAt")) === oldTime && String(parent(data).id) === oldParent, "A different selection preserves earlier entities and folders untouched");
     ok(A.saved(m)[url].join(",") === "Orders", "Selection is remembered per service");
     var changed = Object.assign({}, rows[0], {fields: rows[0].fields.filter(function (f) { return f.path !== "Balance"; })}); sync([changed]);
     ok(String(data.documentation).indexOf("**Balance**") < 0 && String(data.documentation).indexOf("Architect notes") === 0, "Metadata refresh removes old fields and keeps manual notes");
@@ -46,7 +60,12 @@
     data.documentation = "<!-- archi-odata-sync:begin -->"; blocked = false;
     try { A.prepare(m, url, [rows[0]], {}); } catch (e) { blocked = true; }
     ok(blocked, "Broken documentation markers block preflight"); data.documentation = oldDocumentation;
-    var Handler = Java.type("com.archimatetool.script.commands.CommandHandler"); Handler.finalise(); Handler.init();
+    var entitiesFolder = parent(data); legacyService.add(data); entitiesFolder.delete();
+    var manualFolder = legacyService.createFolder("Entities"), manualData = m.createElement("data-object", "Manual entity"); manualFolder.add(manualData);
+    blocked = false; try { A.prepare(m, url, [rows[0]], {}); } catch (e) { blocked = String(e.message).indexOf("Folder name conflict: Entities") >= 0; }
+    ok(blocked && String(parent(data).id) === String(legacyService.id) && String(parent(manualData).id) === String(manualFolder.id), "Manual type-folder conflicts block preflight without moving any elements");
+    manualData.delete(); manualFolder.delete(); sync([rows[0]]);
+    Handler.finalise(); Handler.init();
     var undoRoot = "https://undo.example.test/odata/"; sync([rows[0]], undoRoot); Handler.finalise();
     var undoId = String(concept("Customers", "data", undoRoot).id);
     ok(stack.canUndo(), "Synchronization creates a native Undo operation"); stack.undo();

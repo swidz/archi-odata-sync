@@ -39,7 +39,17 @@ The installer creates a new package directory and refuses to overwrite an existi
 
 The popup lists the entity-set name, title, type, and field count or an explanation of unavailable metadata. Newly discovered entries start unchecked; the last successful selection is remembered separately for each service. Cancel closes the operation without changing the model.
 
-New concepts are placed under **Application / OData / service URL**. Access relationships are under **Relations / OData / service URL**. Existing concepts stay in their current folders when refreshed.
+Concepts are grouped by type beneath the service URL:
+
+```text
+Application
+└── OData
+    └── service URL
+        ├── API         (Application Interfaces)
+        └── Entities    (Data Objects)
+```
+
+Access relationships are under **Relations / OData / service URL**. On the next sync, selected existing interfaces and data objects move into the corresponding type folders, preserving their IDs, documentation, diagram instances and relationships. Unselected entities keep their existing folders; select them in a later run to reorganize them. Folder moves are included in the script's Undo operation.
 
 ### OAuth 2.0 connection
 

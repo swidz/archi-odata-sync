@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Group Application Interfaces under `OData / service URL / API` and Data Objects under `OData / service URL / Entities`.
+- Move selected existing concepts into the type folders during synchronization, preserving IDs, documentation, diagram references and relationships; support Undo/Redo of these moves.
+- Preserve unselected concepts and preflight conflicts with manually created folder names.
+
 ## 0.2.1
 
 - Raise the default OData response limit from 32 MiB to 256 MiB for large metadata documents.
