@@ -5,7 +5,8 @@
 | Module | Responsibility |
 |---|---|
 | `core.js` | Portable URL normalization, CSDL type resolution, service-list joining and field documentation |
-| `java-runtime.js` | Java HTTP requests, namespace-aware XML parsing, authentication header encoding |
+| `oauth.js` | Form encoding, client-credentials requests, token validation, expiry, renewal and session cleanup |
+| `java-runtime.js` | Java HTTP GET/token POST requests, namespace-aware XML parsing, authentication header encoding |
 | `ui.js` | Native SWT credentials and searchable checkbox entity picker |
 | `archi-adapter.js` | Preflight validation, managed identity lookup, model mutations and properties |
 | `app.js` | URL → authentication → discovery → selection → preflight → synchronization |
@@ -20,6 +21,10 @@ Owned properties include `OData-ServiceUrl`, `OData-EntitySet`, `OData-EntityTyp
 
 The default response limit is 32 MiB. Connect timeout is 20 seconds, response read timeout is 60 seconds, with an additional elapsed-body-read check. Standard JVM proxy/trust configuration applies; certificate validation is never disabled. Error messages omit response bodies.
 
+OAuth uses a user-supplied token endpoint, resource, client ID and client secret. Secrets are submitted in a UTF-8 URL-encoded `client_credentials` POST body only to that token endpoint. The token response is capped at 1 MiB; redirects are disabled. Only known OAuth error codes are included in errors, never raw descriptions or responses. Resource endpoints receive only the access token. Both credentialed service requests and token requests require HTTPS except explicit localhost tests.
+
+The session holds credentials until discovery completes and the user finishes/cancels the operation. It reuses the token, acquires another before expiry, and invalidates/retries once on a 401; a second 401 fails. Refresh tokens are not used. A token response without `expires_in` is reused for this run until rejected. All successful, cancelled and failed discovery/application paths clear the OAuth session. Authentication failures clear the session before it is returned to the application.
+
 The executable package is portable JavaScript and Java/SWT. Automated portable tests can run on Windows, macOS and Linux; native Archi verification has been performed on Windows only.
 
 ## Primary references
@@ -29,3 +34,5 @@ The executable package is portable JavaScript and Java/SWT. Automated portable t
 - [jArchi Model API](https://github.com/archimatetool/archi-scripting-plugin/wiki/Model): element and relationship creation.
 - [jArchi Relationship API](https://github.com/archimatetool/archi-scripting-plugin/wiki/Relationships): `accessType = "readwrite"`.
 - [Public TripPin OData service](https://services.odata.org/V4/TripPinServiceRW/): optional anonymous integration check.
+- [OAuth 2.0, RFC 6749](https://www.rfc-editor.org/rfc/rfc6749): client credentials grant, form encoding and token responses.
+- [Microsoft identity platform client credentials](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow): Entra v2 token POST and the resource `/.default` scope.

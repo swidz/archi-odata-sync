@@ -32,7 +32,7 @@ The installer creates a new package directory and refuses to overwrite an existi
 ## Synchronize
 
 1. Enter the **service root URL**, for example `https://host.example/odata/`. Pasting its `$metadata` URL also works.
-2. Choose **Anonymous**, **Bearer token**, or **Basic** authentication. Token/password inputs are masked. Use an access token issued for your service when it requires OAuth; this version does not acquire or renew tokens.
+2. Choose **OAuth 2.0 (client credentials)** and enter the **OAuth token URL**, **resource**, **client ID** and **client secret value**. The secret input is masked. The script obtains the access token automatically. Anonymous and Basic authentication remain available for services that use them.
 3. The script reads the service's JSON entity list and XML `$metadata` document.
 4. In **Select OData entities**, search, sort, and check the entity sets you want. **Select filtered** adds the visible available entries to the selection. Checked entries stay checked when filtering or sorting.
 5. Click **Synchronize**. Review the result and save your model when ready.
@@ -40,6 +40,26 @@ The installer creates a new package directory and refuses to overwrite an existi
 The popup lists the entity-set name, title, type, and field count or an explanation of unavailable metadata. Newly discovered entries start unchecked; the last successful selection is remembered separately for each service. Cancel closes the operation without changing the model.
 
 New concepts are placed under **Application / OData / service URL**. Access relationships are under **Relations / OData / service URL**. Existing concepts stay in their current folders when refreshed.
+
+### OAuth 2.0 connection
+
+The OData URL identifies the service to inspect. The OAuth token URL is a separate endpoint used to obtain the access token; enter the full endpoint, including the tenant when applicable.
+
+| Input | Example / meaning |
+|---|---|
+| OData service URL | `https://your-environment.example.com/data/` |
+| OAuth token URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/token` |
+| Resource | `https://your-environment.example.com` — the API's registered resource/audience identifier |
+| Client ID | Application registration's client ID |
+| Client secret | The secret **value**, not the secret's ID |
+
+For a resource-based token endpoint, the script posts `grant_type=client_credentials`, `resource`, `client_id` and `client_secret` as URL-encoded form data. For an Entra endpoint ending in `/oauth2/v2.0/token`, it sends `scope=<resource>/.default` instead of `resource`. The resource identifier is preserved exactly, including a trailing slash if required by that API; an already supplied `/.default` suffix is not duplicated.
+
+The application must have the target API's required application permissions and any service-specific application mapping. Credentials are not inferred from the OData URL. The token endpoint uses `client_secret_post` authentication; certificate credentials and endpoints requiring HTTP Basic client authentication are not supported by this OAuth option.
+
+Tokens are reused during the run, renewed before their reported expiry, and reacquired once after an HTTP 401. The client secret and tokens stay in process memory and are cleared from the session on completion or cancellation. No refresh token is required. Token endpoint redirects are rejected, and error dialogs omit token response bodies and server error descriptions.
+
+Optional non-secret defaults can be set in `config/settings.js`: `oauthTokenUrl`, `oauthResource` and `oauthClientId`. Never add a secret or token to that file.
 
 ## Repeated runs
 
@@ -70,7 +90,7 @@ Generated sections are bounded by `<!-- archi-odata-sync:begin -->` and `<!-- ar
 - Recursive complex types are listed with an explicit expansion limit. Dynamic fields of open types cannot be enumerated from static metadata; documentation notes this.
 - External CSDL reference documents are not downloaded. If a required type is outside the retrieved document, that entity is listed as unavailable rather than imported with incomplete fields.
 - The script reads **schema information only**. It does not retrieve records or write to the OData service. Read/Write Access is the requested architectural mapping, not a claim about the endpoint's CRUD capabilities or the signed-in user's permissions.
-- Anonymous, supplied bearer token, and Basic credentials are supported. Browser sign-in, integrated Windows authentication, OAuth token acquisition and custom-header API keys are not included.
+- OAuth 2.0 client credentials, Anonymous and Basic credentials are supported. Manual bearer-token entry has been removed. Browser sign-in, integrated Windows authentication and custom-header API keys are not included.
 - Service URLs must not contain credentials, query parameters, or fragments. Credentials stay in process memory and are not stored in the model, files, logs or settings. Credentialed requests require HTTPS except for localhost testing.
 - Redirects are limited to the same origin. XML DTDs/external entities are disabled. Response size and timeout limits are configurable in `config/settings.js`.
 - Requests run synchronously in the jArchi script; large metadata responses can temporarily block Archi interaction until the request completes or times out.

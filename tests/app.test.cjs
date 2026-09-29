@@ -32,3 +32,17 @@ test('preflight error does not apply', () => {
   const f = fixture(); f.io.prepare = () => { throw Error('duplicate identity'); };
   assert.throws(() => App.execute(f.io, {}), /duplicate/); assert.ok(!f.calls.includes('apply'));
 });
+test('OAuth session is cleared after cancellation and failures', () => {
+  for (const failure of [false, true]) {
+    const f = fixture(); let cleared = false;
+    f.auth.clear = () => { cleared = true; };
+    if (failure) f.io.discover = () => { throw Error('denied'); }; else f.io.select = () => null;
+    if (failure) assert.throws(() => App.execute(f.io, {}), /denied/); else App.execute(f.io, {});
+    assert.equal(cleared, true); assert.ok(!f.calls.includes('apply'));
+  }
+});
+test('OAuth authentication failure occurs before discovery or model changes', () => {
+  const f = fixture(); f.io.authenticate = () => { throw Error('invalid_client'); };
+  assert.throws(() => App.execute(f.io, {}), /invalid_client/);
+  assert.deepEqual(f.calls, ['url']);
+});

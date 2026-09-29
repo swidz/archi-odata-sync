@@ -11,4 +11,6 @@ foreach ($taskFolder in @('lib', 'scripts', 'config', 'docs')) {
 }
 Copy-Item -LiteralPath (Join-Path $taskPackage 'README.md') -Destination $taskDestination
 Copy-Item -LiteralPath (Join-Path $taskPackage 'LICENSE') -Destination $taskDestination
+Copy-Item -LiteralPath (Join-Path $taskPackage 'package.json') -Destination $taskDestination
+Copy-Item -LiteralPath (Join-Path $taskPackage 'CHANGELOG.md') -Destination $taskDestination
 Write-Output "Installed to $taskDestination. Refresh the jArchi Scripts tree."

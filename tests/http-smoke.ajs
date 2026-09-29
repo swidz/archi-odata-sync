@@ -1,6 +1,6 @@
 (function () {
     var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
-    ["core", "java-runtime"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    ["core", "oauth", "java-runtime"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
     var J = ODataJava, C = ODataCore, checks = [];
     var base = String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + "/work/http-fixture-url.txt")));
     function ok(value, message) { C.assert(value, message); checks.push(message); }
@@ -15,6 +15,28 @@
     var denied = rejected("denied/", {}, "401"); ok(denied.indexOf("Sensitive") < 0, "Error messages omit response bodies");
     rejected("large/", {maxResponseBytes: 1000}, "size limit");
     rejected("slow/", {requestTimeoutSeconds: 1}, "timed out");
+    function credentials(path) { return {tokenUrl: base + (path || "token/resource"), resource: "https://resource.example.test", clientId: "synthetic-client", clientSecret: "a+b &=/%?é!()"}; }
+    function count() { return JSON.parse(get("stats")).tokenRequests; }
+    var before = count(), auth = J.oauth(base + "oauth/", credentials(), {});
+    try {
+        rows = J.discover(base + "oauth/", auth, {}, function () {});
+        ok(rows.length === 2 && rows.every(function (r) { return r.available; }), "Client-credentials POST acquires a token and authorizes service plus metadata discovery");
+        ok(count() === before + 1, "Token is reused across both discovery requests");
+    } finally { auth.clear(); }
+    auth = J.oauth(base + "oauth/", credentials("tenant/oauth2/v2.0/token"), {});
+    try { ok(J.discover(base + "oauth/", auth, {}, function () {}).length === 2, "Entra v2 token request uses scope resource/.default"); } finally { auth.clear(); }
+    before = count(); auth = J.oauth(base + "renew/", credentials(), {});
+    try { ok(J.discover(base + "renew/", auth, {}, function () {}).length === 2 && count() === before + 2, "A 401 causes one new token request then successful retry"); } finally { auth.clear(); }
+    before = count(); auth = J.oauth(base + "blocked/", credentials(), {}); var message = "";
+    try { J.discover(base + "blocked/", auth, {}, function () {}); } catch (e) { message = String(e.message || e); } finally { auth.clear(); }
+    ok(message.indexOf("401") >= 0 && count() === before + 2, "Persistent 401 fails after one renewal without looping");
+    function oauthRejected(path, expected) {
+        var error = ""; try { J.oauth(base + "oauth/", credentials(path), {}); } catch (e) { error = String(e.message || e); }
+        ok(error.indexOf(expected) >= 0 && error.indexOf("client_secret=") < 0 && error.indexOf("a+b") < 0, "OAuth failure is safe and explicit: " + path);
+    }
+    oauthRejected("token/reject", "invalid_client");
+    before = count(); oauthRejected("token/redirect", "redirects are refused"); ok(count() === before + 1, "Token POST redirects never forward client credentials");
+    oauthRejected("token/large", "size limit"); oauthRejected("token/non-json", "JSON object"); oauthRejected("token/wrong-type", "token type");
     J.write(root + "/work/http-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
     console.log("ODATA_HTTP_SMOKE_PASSED: " + checks.length);
 }());

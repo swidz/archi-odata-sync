@@ -4,16 +4,16 @@ Verified on Windows with the installed Archi and jArchi 1.12/GraalJS runtime. Al
 
 | Check | Result |
 |---|---|
-| Node regression suite | 25 passing tests |
+| Node regression suite | 48 passing tests, including OAuth encoding, expiry, cleanup and authentication failures |
 | Native Archi/XML/model suite | 22 checks, including stable IDs, Read/Write Access, documentation preservation and Undo/Redo |
-| Native SWT dialogs | 12 checks: search, sorting, checked-state persistence, unavailable rows, cancellation and masked credential entry |
-| Java HTTP client with synthetic loopback service | 9 checks: discovery, bearer/Basic authentication, redirects, error redaction, size cap and timeout |
+| Native SWT dialogs | 17 checks: entity selection, OAuth form fields, validation, masked client secret and cancellation |
+| Java HTTP client with synthetic loopback service | 20 checks: client-credentials acquisition, resource/v2 scope, token reuse, bounded 401 retry, form encoding, redirect refusal, redaction, size limits and timeout |
 | Public OData TripPin live integration | 4 entity sets discovered; People imported with 12 fields |
 | JavaScript/jArchi syntax | Passed |
 
 The public sample check performs only GET requests for its service document and metadata. Its write-capable name does not change the synchronizer's read-only HTTP behavior.
 
-Not verified: a user-provided OData endpoint or tenant, native Archi on macOS/Linux, and OAuth token acquisition (not implemented). The included GitHub Actions workflow has not been run remotely.
+Not verified: a user-provided OData endpoint or real OAuth tenant, native Archi on macOS/Linux, and the current change's GitHub Actions run. OAuth integration was verified using synthetic credentials and a local token endpoint; the public TripPin test uses anonymous access.
 
 ## Repeat locally
 

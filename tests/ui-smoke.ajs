@@ -1,7 +1,7 @@
 /* Short-lived SWT dialogs driven by native events in an isolated test process. */
 (function () {
     var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
-    ["core", "java-runtime", "ui"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    ["core", "oauth", "java-runtime", "ui"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
     var SWT = Java.type("org.eclipse.swt.SWT"), Event = Java.type("org.eclipse.swt.widgets.Event"), display = Java.type("org.eclipse.swt.widgets.Display").getDefault(), checks = [], error;
     function ok(v, message) { ODataCore.assert(v, message); checks.push(message); }
     function walk(w, list) { list.push(w); if (w.getChildren) Java.from(w.getChildren()).forEach(function (child) { walk(child, list); }); return list; }
@@ -28,11 +28,18 @@
     ok(result.length === 2, "Popup returns two selected entities");
     automate("Select OData entities", function (d, w) { click(button(w, "Clear selection")); ok(!button(w, "Synchronize").getEnabled(), "Empty selection cannot synchronize"); click(button(w, "Cancel")); });
     result = ODataUI.entities(rows, ["Customers"]); if (error) throw error; ok(result === null, "Cancel returns null");
-    automate("OData credentials", function (d, w) {
-        var text = w.filter(function (x) { return type(x) === "Text"; })[0]; ok((Number(text.getStyle()) & Number(SWT.PASSWORD)) !== 0, "Bearer token entry is masked");
-        text.setText("synthetic-token"); click(button(w, "Continue"));
+    automate("OData OAuth 2.0", function (d, w) {
+        var fields = w.filter(function (x) { return type(x) === "Text"; });
+        ok(fields.length === 4, "OAuth form asks for token URL, resource, client ID and secret");
+        ok(!button(w, "Connect").getEnabled(), "OAuth form requires all four values");
+        ok((Number(fields[3].getStyle()) & Number(SWT.PASSWORD)) !== 0, "Client secret entry is masked");
+        fields[0].setText("https://login.example.test/tenant/oauth2/token"); fields[1].setText("https://api.example.test"); fields[2].setText("test-client"); fields[3].setText("synthetic-secret");
+        ok(button(w, "Connect").getEnabled(), "Complete OAuth form enables Connect"); click(button(w, "Connect"));
     });
-    result = ODataUI.credentials("Bearer token"); if (error) throw error; ok(result.secret === "synthetic-token", "Credential dialog returns runtime-only token"); result.secret = "";
+    result = ODataUI.oauthCredentials({}); if (error) throw error;
+    ok(result.tokenUrl === "https://login.example.test/tenant/oauth2/token" && result.clientId === "test-client" && result.clientSecret === "synthetic-secret", "OAuth dialog returns client credentials"); result.clientSecret = "";
+    automate("OData OAuth 2.0", function (d, w) { click(button(w, "Cancel")); });
+    result = ODataUI.oauthCredentials({}); if (error) throw error; ok(result === null, "OAuth cancellation returns no credentials");
     ODataJava.write(root + "/work/ui-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
     console.log("ODATA_UI_SMOKE_PASSED: " + checks.length);
 }());
