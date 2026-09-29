@@ -1,0 +1,21 @@
+/* Verify process-only storage across genuinely closed GraalJS contexts. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "java-runtime", "session"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var checks = [], session = ODataSession.current(), url = "https://session.example.test/", mode = "OAuth 2.0 (client credentials)";
+    function ok(value, message) { ODataCore.assert(value, message); checks.push(message); }
+    ok(session.lastUrl() === "" && !session.credentials(url, mode).clientSecret, "New Archi process has no retained connection values");
+    var source = String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + "/lib/session.js")));
+    var Context = Java.type("org.graalvm.polyglot.Context"), loader = Java.type("org.eclipse.swt.widgets.Display").class.getClassLoader();
+    function evaluate(code) {
+        var context = Context.newBuilder(Java.to(["js"], "java.lang.String[]")).allowAllAccess(true).hostClassLoader(loader).build();
+        try { return String(context.eval("js", source + "\n" + code)); } finally { context.close(); }
+    }
+    var prefix = 'var session = ODataSession.current(), url = "https://session.example.test/", mode = "OAuth 2.0 (client credentials)"; ';
+    evaluate(prefix + 'session.rememberUrl(url); session.remember(url, mode, {tokenUrl: "https://login.example.test/token", resource: url, clientId: "synthetic-client", clientSecret: "synthetic-secret"}); "stored";');
+    ok(session.lastUrl() === url, "URL remains available after the writing GraalJS context closes");
+    ok(evaluate(prefix + 'session.credentials(url, mode).clientSecret;') === "synthetic-secret", "A separate GraalJS context can restore the secret after the first context closes");
+    ok(Java.type("java.lang.String").class.isInstance(Java.type("org.eclipse.swt.widgets.Display").getDefault().getData("archi-odata-sync.connection-form.v1")), "Display holds only a Java String with no guest objects or callbacks");
+    ODataJava.write(root + "/work/session-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_SESSION_SMOKE_PASSED: " + checks.length);
+}());

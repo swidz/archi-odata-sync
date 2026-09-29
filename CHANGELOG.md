@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Remember the last OData URL and submitted OAuth/Basic connection values, including masked secrets, in process memory until Archi closes.
+- Restore credentials separately for each service URL across script runs and open models; put the previous authentication choice first and preserve submitted values when edits are canceled.
+- Keep access tokens scoped to each synchronization run. Never persist connection-form defaults to the model or settings.
+- Stop reading the legacy model-backed URL default and remove it during successful synchronization.
+
 ## 0.4.0
 
 - Create one environment Node per OData service URL in the Technology & Physical layer.

@@ -46,3 +46,20 @@ test('OAuth authentication failure occurs before discovery or model changes', ()
   assert.throws(() => App.execute(f.io, {}), /invalid_client/);
   assert.deepEqual(f.calls, ['url']);
 });
+
+test('URL prompt uses process memory across models and ignores the legacy model property', () => {
+  const vm = require('node:vm'), fs = require('node:fs'), Session = require('../lib/session.js');
+  let stored, entered = 'https://example.test/$metadata', defaultValue;
+  const session = Session.create({get: () => stored, set: value => { stored = value; }});
+  const context = vm.createContext({
+    ODataCore: require('../lib/core.js'), ODataSession: {current: () => session},
+    model: {prop() { throw Error('Connection form must not access model properties'); }},
+    ODataUI: {authentication: () => null}, ODataArchi: {},
+    ODataJava: {normalizeUrl: () => 'https://example.test/'},
+    window: {prompt: (label, value) => { defaultValue = value; return entered; }, alert(message) { throw Error(message); }}
+  });
+  vm.runInContext(fs.readFileSync(require.resolve('../lib/app.js'), 'utf8'), context);
+  context.ODataApp.run({defaultUrl: 'configured-default'}); assert.equal(defaultValue, 'configured-default');
+  context.model = {prop() { throw Error('Different model must not affect session defaults'); }}; entered = null;
+  context.ODataApp.run({}); assert.equal(defaultValue, 'https://example.test/'); assert.equal(session.lastUrl(), defaultValue);
+});

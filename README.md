@@ -59,7 +59,7 @@ Rerunning an older model adds the environment and missing Serving links for the 
 
 ### OAuth 2.0 connection
 
-The OData URL identifies the service to inspect. The OAuth token URL is prefilled with the Microsoft Entra v2 template below. Replace `{tenant-id}` with your tenant ID, or enter another full token endpoint. A configured `oauthTokenUrl` takes precedence over the template.
+The OData URL identifies the service to inspect. The OAuth token URL is initially prefilled with the Microsoft Entra v2 template below. Replace `{tenant-id}` with your tenant ID, or enter another full token endpoint. A configured `oauthTokenUrl` takes precedence over the template; values remembered during the current Archi session take precedence over configuration.
 
 | Input | Example / meaning |
 |---|---|
@@ -73,9 +73,17 @@ For a resource-based token endpoint, the script posts `grant_type=client_credent
 
 The application must have the target API's required application permissions and any service-specific application mapping. Credentials are not inferred from the OData URL. The token endpoint uses `client_secret_post` authentication; certificate credentials and endpoints requiring HTTP Basic client authentication are not supported by this OAuth option.
 
-Tokens are reused during the run, renewed before their reported expiry, and reacquired once after an HTTP 401. The client secret and tokens stay in process memory and are cleared from the session on completion or cancellation. No refresh token is required. Token endpoint redirects are rejected, and error dialogs omit token response bodies and server error descriptions.
+Tokens are reused during the run, renewed before their reported expiry, and reacquired once after an HTTP 401. Tokens and the authentication operation's credential copy are cleared on completion or cancellation. The connection form keeps its own in-memory copy until Archi closes, as described below. No refresh token is required. Token endpoint redirects are rejected, and error dialogs omit token response bodies and server error descriptions.
 
 Optional non-secret defaults can be set in `config/settings.js`: `oauthTokenUrl`, `oauthResource` and `oauthClientId`. Never add a secret or token to that file.
+
+### Remembering connection forms
+
+The last valid OData URL and submitted connection values are remembered **only until Archi closes**. OAuth token URL, resource, client ID and masked client secret are restored separately for each canonical service URL. Basic username/password and the last authentication choice are also remembered. The previous authentication choice appears first in the chooser. Values remain available across script runs and open models in the same Archi process.
+
+Clicking **Connect** or **Continue** remembers that form even if the subsequent network request fails. Canceling or closing a form leaves its previous submitted values intact. Changing to an unfamiliar service URL starts with configured defaults and an empty secret. The script does not write connection defaults to files, preferences, settings or the model. After restarting Archi, enter the secret again; configured non-secret defaults still apply.
+
+Earlier versions stored the URL prompt default as the model property `OData-LastServiceUrl`. It is no longer read and is removed during the next successful synchronization, with normal Undo support. Imported elements still carry their source URLs for identity and documentation, and per-service entity selections remain part of the model; these are separate from connection-form memory.
 
 ## Repeated runs
 

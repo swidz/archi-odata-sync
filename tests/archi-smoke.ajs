@@ -20,7 +20,9 @@
     unwrap.setAccessible(true); var raw = unwrap.invoke(m), Stack = Java.type("org.eclipse.gef.commands.CommandStack"), stack = new Stack(); raw.setAdapter(Stack.class, stack);
     function sync(selected, serviceUrl) { var p = A.prepare(m, serviceUrl || url, selected, {}); return A.apply(m, p); }
     function concept(name, role, serviceUrl) { return A.index(m)[C.key(serviceUrl || url, name, role)]; }
+    m.prop("OData-LastServiceUrl", "https://legacy.example.test/");
     var first = sync([rows[0]]), intf = concept("Customers", "interface"), data = concept("Customers", "data"), rel = concept("Customers", "access");
+    ok(!m.prop("OData-LastServiceUrl"), "Sync removes the legacy model-backed URL form default");
     ok(first.created === 3 && first.entities === 1 && String(intf.type) === "application-interface" && String(data.type) === "data-object", "Creates an environment plus interface/data pair and counts one selected entity");
     var environment = concept("", "environment"), serving = concept("Customers", "serving"), environmentId = String(environment.id), servingId = String(serving.id);
     ok(String(environment.type) === "node" && String(environment.prop("OData-ServiceUrl")) === url, "Creates one environment Node identified by the OData service URL");
@@ -99,6 +101,7 @@
     ok(!concept("Customers", "data", undoRoot) && !concept("", "environment", undoRoot) && !concept("Customers", "serving", undoRoot) && !A.saved(m)[undoRoot], "Undo removes the environment, imported pair and Serving link and restores saved selection"); stack.redo();
     ok(String(concept("Customers", "data", undoRoot).id) === undoId && String(concept("Customers", "access", undoRoot).accessType) === "readwrite", "Redo restores element IDs and Read/Write Access"); Handler.init();
     ok(String(concept("", "environment", undoRoot).id) === undoEnvironmentId && String(concept("Customers", "serving", undoRoot).id) === undoServingId, "Redo restores environment and Serving IDs");
+    ok(!m.prop("OData-LastServiceUrl"), "Repeated sync never recreates the model-backed connection form default");
     J.write(root + "/work/archi-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
     console.log("ODATA_ARCHI_SMOKE_PASSED: " + checks.length);
 }());
