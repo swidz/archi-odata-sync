@@ -92,7 +92,7 @@ Generated sections are bounded by `<!-- archi-odata-sync:begin -->` and `<!-- ar
 - The script reads **schema information only**. It does not retrieve records or write to the OData service. Read/Write Access is the requested architectural mapping, not a claim about the endpoint's CRUD capabilities or the signed-in user's permissions.
 - OAuth 2.0 client credentials, Anonymous and Basic credentials are supported. Manual bearer-token entry has been removed. Browser sign-in, integrated Windows authentication and custom-header API keys are not included.
 - Service URLs must not contain credentials, query parameters, or fragments. Credentials stay in process memory and are not stored in the model, files, logs or settings. Credentialed requests require HTTPS except for localhost testing.
-- Redirects are limited to the same origin. XML DTDs/external entities are disabled. Response size and timeout limits are configurable in `config/settings.js`.
+- Redirects are limited to the same origin. XML DTDs/external entities are disabled. The response size limit defaults to **256 MiB** (`maxResponseBytes: 268435456`), accommodating metadata documents larger than the original 32 MiB limit. Size-limit errors report the response size and configured cap. Adjust this and the timeout limits in the **installed** `archi-odata-sync/config/settings.js` when needed; increasing the cap also allows higher memory use while XML is parsed.
 - Requests run synchronously in the jArchi script; large metadata responses can temporarily block Archi interaction until the request completes or times out.
 
 ## Development

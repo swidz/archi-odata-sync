@@ -7,5 +7,6 @@ var ODATA_SETTINGS = {
     rootFolderName: "OData",
     connectTimeoutSeconds: 20,
     requestTimeoutSeconds: 60,
-    maxResponseBytes: 33554432
+    // 256 MiB: large ERP services can publish metadata well above 32 MiB.
+    maxResponseBytes: 268435456
 };

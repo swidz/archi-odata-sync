@@ -7,7 +7,8 @@ Verified on Windows with the installed Archi and jArchi 1.12/GraalJS runtime. Al
 | Node regression suite | 48 passing tests, including OAuth encoding, expiry, cleanup and authentication failures |
 | Native Archi/XML/model suite | 22 checks, including stable IDs, Read/Write Access, documentation preservation and Undo/Redo |
 | Native SWT dialogs | 17 checks: entity selection, OAuth form fields, validation, masked client secret and cancellation |
-| Java HTTP client with synthetic loopback service | 20 checks: client-credentials acquisition, resource/v2 scope, token reuse, bounded 401 retry, form encoding, redirect refusal, redaction, size limits and timeout |
+| Java HTTP client with synthetic loopback service | 23 checks: OAuth acquisition and renewal, response size diagnostics, Content-Length and chunked response caps, redirect refusal, redaction and timeout |
+| Large metadata in native Archi | 6 checks: CSDL with 180,000 synthetic fields exceeds the old 32 MiB cap and completes XML parsing and entity discovery with the 256 MiB default |
 | Public OData TripPin live integration | 4 entity sets discovered; People imported with 12 fields |
 | JavaScript/jArchi syntax | Passed |
 
@@ -28,6 +29,7 @@ npm run check
 # In another terminal, run the synthetic service (Ctrl+C to stop):
 node tools/http-fixture.cjs
 ./tools/test-archi.ps1 -BundlesFile 'C:/path/to/bundles.info' -Script http-smoke.ajs
+./tools/test-archi.ps1 -BundlesFile 'C:/path/to/bundles.info' -Script large-metadata-smoke.ajs
 
 # Optional public-network check:
 ./tools/test-archi.ps1 -BundlesFile 'C:/path/to/bundles.info' -Script live-smoke.ajs

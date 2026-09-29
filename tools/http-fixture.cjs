@@ -42,6 +42,20 @@ const server = http.createServer((req, res) => {
   if (route === '/cross/') { res.writeHead(302, {Location: 'http://localhost:1/'}); return res.end(); }
   if (route === '/redirect/') { res.writeHead(302, {Location: '/odata/'}); return res.end(); }
   if (route === '/large/') { res.writeHead(200); return res.end('x'.repeat(2048)); }
+  if (route === '/large-chunked/') { res.writeHead(200); res.write('x'.repeat(800)); return res.end('y'.repeat(800)); }
+  if (route === '/oversize-metadata/$metadata') { res.writeHead(200, {'Content-Type': 'application/xml', 'Content-Length': 1024 * 1024}); return res.end(); }
+  if (route === '/big-metadata/$metadata') {
+    // More than 32 MiB of actual CSDL fields, not whitespace padding.
+    const schemaEnd = metadata.indexOf(Buffer.from('</Schema>'));
+    const property = '<Property Name="Field_PLACEHOLDER" Type="Edm.String" MaxLength="200"><Annotation Term="Org.OData.Core.V1.Description" String="Synthetic ERP metadata field for response size regression verification"/></Property>';
+    const fields = Array.from({length: 100}, (_, i) => property.replace('PLACEHOLDER', i)).join('');
+    const types = Array.from({length: 1800}, (_, i) => `<EntityType Name="AdditionalType${i}">${fields}</EntityType>`);
+    const length = metadata.length + types.reduce((sum, value) => sum + Buffer.byteLength(value), 0);
+    res.writeHead(200, {'Content-Type': 'application/xml', 'Content-Length': length, 'OData-Version': '4.0'});
+    res.write(metadata.subarray(0, schemaEnd));
+    for (const type of types) res.write(type);
+    return res.end(metadata.subarray(schemaEnd));
+  }
   if (route === '/slow/') { res.writeHead(200); return setTimeout(() => res.end('{}'), 1500); }
   if (route.endsWith('$metadata')) { res.writeHead(200, {'Content-Type': 'application/xml', 'OData-Version': '4.0'}); return res.end(metadata); }
   if (route.endsWith('/')) { res.writeHead(200, {'Content-Type': 'application/json', 'OData-Version': '4.0'}); return res.end(service); }

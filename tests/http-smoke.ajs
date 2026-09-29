@@ -13,7 +13,10 @@
     function rejected(path, settings, match) { var message = ""; try { get(path, settings); } catch (e) { message = String(e.message || e); } ok(message.indexOf(match) >= 0, "Rejected response: " + path); return message; }
     rejected("cross/", {}, "different origin");
     var denied = rejected("denied/", {}, "401"); ok(denied.indexOf("Sensitive") < 0, "Error messages omit response bodies");
-    rejected("large/", {maxResponseBytes: 1000}, "size limit");
+    var sizeError = rejected("large/", {maxResponseBytes: 1000}, "size limit");
+    ok(sizeError.indexOf("2048 bytes") >= 0 && sizeError.indexOf("1000 bytes") >= 0 && sizeError.indexOf("maxResponseBytes") >= 0, "Content-Length limit errors identify the response size and setting");
+    sizeError = rejected("large-chunked/", {maxResponseBytes: 1000}, "size limit");
+    ok(sizeError.indexOf("Read at least:") >= 0 && sizeError.indexOf("1000 bytes") >= 0, "Chunked response limits use actual received bytes");
     rejected("slow/", {requestTimeoutSeconds: 1}, "timed out");
     function credentials(path) { return {tokenUrl: base + (path || "token/resource"), resource: "https://resource.example.test", clientId: "synthetic-client", clientSecret: "a+b &=/%?é!()"}; }
     function count() { return JSON.parse(get("stats")).tokenRequests; }

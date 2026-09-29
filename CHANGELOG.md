@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Raise the default OData response limit from 32 MiB to 256 MiB for large metadata documents.
+- Report the actual or minimum received response size, the configured cap and the installed setting to change when the cap is exceeded.
+- Prefill the Entra v2 token URL template and require replacement of `{tenant-id}`.
+
 ## 0.2.0
 
 - Replace manual bearer-token input with OAuth 2.0 client credentials: token URL, resource, client ID and masked client secret.

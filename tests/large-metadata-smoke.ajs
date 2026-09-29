@@ -1,0 +1,23 @@
+/* Real XML parsing and entity discovery above the former 32 MiB cap. Synthetic data only. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "java-runtime"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    load(root + "/config/settings.js");
+    var J = ODataJava, C = ODataCore, checks = [], start = Date.now();
+    var base = String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + "/work/http-fixture-url.txt")));
+    function ok(value, message) { C.assert(value, message); checks.push(message); }
+    ok(ODATA_SETTINGS.maxResponseBytes === 268435456, "Packaged default permits 256 MiB responses");
+    var error = "";
+    try { J.get(base, base + "big-metadata/$metadata", "application/xml", {header: ""}, {maxResponseBytes: 33554432}); } catch (e) { error = String(e.message || e); }
+    ok(error.indexOf("size limit") >= 0 && error.indexOf("32.00 MiB") >= 0 && error.indexOf("Reported size:") >= 0, "The fixture exceeds the old 32 MiB cap");
+    error = "";
+    try { J.get(base, base + "oversize-metadata/$metadata", "application/xml", {header: ""}, {maxResponseBytes: 1000}); } catch (e) { error = String(e.message || e); }
+    ok(error.indexOf("OData $metadata document") >= 0 && error.indexOf("1048576 bytes") >= 0, "Metadata size errors identify the document and advertised byte count");
+    var rows = J.discover(base + "big-metadata/", {header: ""}, ODATA_SETTINGS, function (message) { console.log(message); });
+    ok(rows.length === 2 && rows.every(function (r) { return r.available; }), "Large CSDL downloads, parses and joins to the entity selection list");
+    ok(rows[0].fields.length === 7 && rows[0].fields[0].key, "Large metadata preserves field and inherited-key discovery");
+    // Verify fallback too, without materializing the large response a second time.
+    ok(J.get(base, base + "odata/", "application/json", {header: ""}, {}).length > 0, "Omitted response setting uses a valid fallback");
+    J.write(root + "/work/large-metadata-smoke-result.json", JSON.stringify({status: "passed", checks: checks, elapsedMilliseconds: Date.now() - start}, null, 2));
+    console.log("ODATA_LARGE_METADATA_SMOKE_PASSED: " + checks.length);
+}());
