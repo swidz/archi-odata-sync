@@ -1,0 +1,12 @@
+/* Run after cache-smoke, with the loopback fixture stopped, in a fresh Archi process. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "oauth", "java-runtime", "cache", "ui", "progress"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var input = JSON.parse(String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + "/work/cache-restart-input.json")))), checks = [];
+    function ok(value, message) { ODataCore.assert(value, message); checks.push(message); }
+    ok(!!ODataCache.info(input.root, input.settings), "The disk snapshot remains discoverable in a new Archi process");
+    var rows = ODataProgress.discovery(root, input.root, {header: ""}, input.settings, "reuse");
+    ok(rows.length === 2 && rows.some(function (row) { return row.fields.some(function (field) { return field.path === "CachedVersion2"; }); }), "Cached metadata works offline after restarting Archi");
+    ODataJava.write(root + "/work/cache-restart-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_CACHE_RESTART_SMOKE_PASSED: " + checks.length);
+}());

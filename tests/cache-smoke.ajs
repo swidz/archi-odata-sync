@@ -1,0 +1,56 @@
+/* Synthetic metadata only, with an isolated cache directory and a loopback service. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "oauth", "java-runtime", "cache", "ui", "archi-adapter", "progress"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var Files = Java.type("java.nio.file.Files"), Paths = Java.type("java.nio.file.Paths"), checks = [], J = ODataJava, C = ODataCache;
+    function ok(value, message) { ODataCore.assert(value, message); checks.push(message); }
+    var base = String(Files.readString(Paths.get(root + "/work/http-fixture-url.txt"))).trim();
+    var id = String(Java.type("java.util.UUID").randomUUID()), settings = {cacheDirectory: root + "/work/cache-test-" + id};
+    function stats() { return JSON.stringify(JSON.parse(J.get(base, base + "stats", "application/json", {header: ""}, {}))); }
+    function discover(url, mode, auth, options, notify) { return ODataProgress.discovery(root, url, auth || {header: ""}, options || settings, mode, notify); }
+    var url = base + "oauth/", secret = "a+b &=/%?é!()";
+    ok(C.info(url, settings) === null, "A new service has no cached snapshot");
+    var auth = {credentials: {tokenUrl: base + "token/resource", resource: "https://resource.example.test", clientId: "synthetic-client", clientSecret: secret}, clear: function () { this.credentials.clientSecret = ""; }};
+    var rows = discover(url, "fresh", auth), cached = C.info(url, settings);
+    ok(rows.length === 2 && cached && cached.metadataBytes > 0 && isFinite(Date.parse(cached.downloadedAt)), "Fresh OAuth discovery saves a dated metadata snapshot");
+    var docs = C.read(url, settings);
+    ok(docs.service.indexOf(secret) < 0 && docs.metadata.indexOf(secret) < 0 && docs.metadata.indexOf("Bearer ") < 0, "Snapshot documents contain no supplied secret or bearer token");
+    var zip = new (Java.type("java.util.zip.ZipFile"))(C.location(url, settings).toFile()), names = [], entries = zip.entries();
+    try { while (entries.hasMoreElements()) names.push(String(entries.nextElement().getName())); } finally { zip.close(); }
+    ok(names.sort().join(",") === "metadata.xml,service.json,snapshot.json", "Snapshot contains only the raw service document, raw metadata and identity/date manifest");
+    var before = stats(), again = discover(url, "reuse", {credentials: {tokenUrl: "invalid", clientSecret: "unused"}});
+    ok(JSON.stringify(rows) === JSON.stringify(again) && stats() === before, "Cached discovery returns identical entities with zero HTTP or token requests");
+    var model = $.model.create("Disposable cached subset import"); model.setAsCurrent();
+    ODataProgress.synchronize(model, url, [rows[0]], settings);
+    var key = ODataCore.key(url, rows[0].name, "interface"), firstId = String(ODataArchi.index(model)[key].id);
+    ODataProgress.synchronize(model, url, [again[1]], settings);
+    ok(Object.keys(ODataArchi.index(model)).length === 9 && String(ODataArchi.index(model)[key].id) === firstId && stats() === before, "Repeated cached imports add small entity subsets while preserving the earlier APIs without network access");
+    ok(C.info(base + "different/", settings) === null, "Cache identities isolate different service URLs");
+    var changing = base + "cache-case-" + id + "/";
+    function hasField(values, name) { return values.some(function (row) { return row.fields.some(function (field) { return field.path === name; }); }); }
+    rows = discover(changing, "fresh"); ok(hasField(rows, "CachedVersion1"), "First snapshot contains the original metadata fields");
+    rows = discover(changing, "fresh"); ok(hasField(rows, "CachedVersion2") && !hasField(rows, "CachedVersion1"), "Download fresh replaces the snapshot with updated metadata");
+    var snapshot = String(Java.type("java.util.Base64").getEncoder().encodeToString(Files.readAllBytes(C.location(changing, settings))));
+    ["503", "Invalid XML"].forEach(function (expected) {
+        var message = ""; try { discover(changing, "fresh"); } catch (e) { message = String(e.message); }
+        ok(message.indexOf(expected) >= 0 && String(Java.type("java.util.Base64").getEncoder().encodeToString(Files.readAllBytes(C.location(changing, settings)))) === snapshot, "Failed refresh preserves the previous snapshot: " + expected);
+    });
+    before = stats(); rows = discover(changing, "reuse");
+    ok(hasField(rows, "CachedVersion2") && stats() === before, "The prior snapshot remains reusable after network and parsing failures");
+    var canceled = false, ticks = 0;
+    try { C.save(changing, docs, settings, function () { if (++ticks === 3) { var e = new Error("canceled"); e.cancelled = true; throw e; } }); } catch (e) { canceled = !!e.cancelled; }
+    ok(canceled && String(Java.type("java.util.Base64").getEncoder().encodeToString(Files.readAllBytes(C.location(changing, settings)))) === snapshot, "Cancellation during a cache write preserves the previous complete snapshot");
+    var children = Files.list(Paths.get(settings.cacheDirectory));
+    try { ok(!Java.from(children.toArray()).some(function (p) { return String(p).indexOf(".partial") >= 0; }), "Interrupted cache writes remove their partial file"); } finally { children.close(); }
+    var error = ""; try { C.read(changing, {cacheDirectory: settings.cacheDirectory, maxResponseBytes: 10}); } catch (e) { error = String(e.message); }
+    ok(error.indexOf("maxResponseBytes") >= 0, "Cache loading enforces the configured uncompressed response-size limit");
+    var corrupt = base + "corrupt/"; J.write(String(C.location(corrupt, settings)), "broken zip");
+    before = stats(); error = ""; try { discover(corrupt, "reuse"); } catch (e) { error = String(e.message); }
+    ok(C.info(corrupt, settings) === null && error.indexOf("Download fresh") >= 0 && stats() === before, "A corrupt cache offers an actionable error without a silent network fallback");
+    var blocked = root + "/work/cache-blocked-" + id; J.write(blocked, "not a directory"); var warning = "";
+    rows = discover(base + "odata/", "fresh", null, {cacheDirectory: blocked}, function (message) { warning = message; });
+    ok(rows.length === 2 && warning.indexOf("could not be saved") >= 0, "An unwritable cache reports a warning but still allows fresh entity selection");
+    J.write(root + "/work/cache-restart-input.json", JSON.stringify({root: changing, settings: settings}));
+    J.write(root + "/work/cache-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_CACHE_SMOKE_PASSED: " + checks.length);
+}());

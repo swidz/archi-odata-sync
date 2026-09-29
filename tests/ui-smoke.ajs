@@ -61,6 +61,17 @@
         ok(String(fields[0].getText()) === "demo" && String(fields[1].getText()) === "synthetic-password" && button(w, "Continue").getEnabled(), "Basic credentials are restored and Continue is enabled"); click(button(w, "Cancel"));
     });
     ODataUI.credentials({username: "demo", secret: "synthetic-password"}); if (error) throw error;
+    var cached = {downloadedAt: "2026-09-29T10:00:00.000Z", metadataBytes: 25000000};
+    [{button: "Use cached metadata", result: "reuse"}, {button: "Download fresh", result: "fresh"}, {button: "Cancel", result: null}].forEach(function (choice) {
+        automate("OData metadata", function (d, w) {
+            var labels = w.filter(function (x) { return type(x) === "Label"; }).map(function (x) { return String(x.getText()); }).join(" ");
+            ok(labels.indexOf(url) >= 0 && labels.indexOf("Downloaded:") >= 0 && labels.indexOf("25.00 MB") >= 0, "Cache choice shows service, download date and metadata size");
+            ok(String(d.getDefaultButton().getText()) === "Use cached metadata", "Reuse is the default cache choice");
+            click(button(w, choice.button));
+        });
+        result = ODataUI.metadataSource(url, cached); if (error) throw error;
+        ok(result === choice.result, "Cache dialog returns the selected action: " + choice.button);
+    });
     ODataJava.write(root + "/work/ui-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
     console.log("ODATA_UI_SMOKE_PASSED: " + checks.length);
 }());

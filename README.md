@@ -34,8 +34,8 @@ The installer creates a new package directory and refuses to overwrite an existi
 ## Synchronize
 
 1. Enter the **service root URL**, for example `https://host.example/odata/`. Pasting its `$metadata` URL also works.
-2. Choose **OAuth 2.0 (client credentials)** and enter the **OAuth token URL**, **resource**, **client ID** and **client secret value**. The secret input is masked. The script obtains the access token automatically. Anonymous and Basic authentication remain available for services that use them.
-3. The script reads the service's JSON entity list and XML `$metadata` document.
+2. If a snapshot exists, choose **Use cached metadata** or **Download fresh**. The dialog shows the download date and metadata size. Reuse is selected by default and skips authentication and network requests.
+3. For a fresh download, choose **OAuth 2.0 (client credentials)** and enter the **OAuth token URL**, **resource**, **client ID** and **client secret value**. The secret input is masked. The script obtains the access token, reads the service's JSON entity list and XML `$metadata`, and saves a temporary snapshot after successful analysis. Anonymous and Basic authentication remain available.
 4. In **Select OData entities**, search, sort, and check the entity sets you want. **Select filtered** adds the visible available entries to the selection. Checked entries stay checked when filtering or sorting.
 5. Click **Synchronize**. Review the result and save your model when ready.
 
@@ -44,6 +44,16 @@ The popup lists the entity-set name, title, type, and field count or an explanat
 A progress window shows authentication, downloading, metadata parsing and entity analysis. Downloads show received **MB** and a percentage when the server supplies a total size; otherwise an activity indicator is shown. Authentication and discovery run in the background so Archi can process UI events. The window closes before the entity picker opens.
 
 After **Synchronize**, progress shows preparation, updated elements and completed entities. **Cancel** is available during discovery and preparation. Canceling leaves the model unchanged; an active network request or XML parse may need to finish or time out before the window closes. Once model updates start, Cancel and window closing are disabled. The updates remain a single **Edit > Undo** operation. Progress is specific to each stage, with no estimated overall percentage.
+
+### Temporary metadata cache
+
+The first successful download saves the **complete entity list and metadata** for that service URL, regardless of which entities you select afterward. Run the script again, choose **Use cached metadata**, and select the next few entities/APIs. Earlier imported elements remain unchanged unless selected again. Loading and parsing the snapshot still happens in the background with progress.
+
+Snapshots are stored as ZIP files under the operating system's temporary directory, in `archi-odata-sync` (normally `%TEMP%\archi-odata-sync` on Windows). Each service has its own file, containing `service.json`, `metadata.xml` and a small URL/date manifest. Nothing about the cache is stored in your Archi model. Client IDs, secrets, passwords, tokens and authentication responses are not added to the cache. Connection-form values continue to be remembered only until Archi closes.
+
+The metadata snapshot can survive restarting Archi and can be reused offline. It has no automatic expiry; the operating system or you can remove these temporary files, after which the next run downloads again. Choose **Download fresh** when the schema or connection/account has changed: reuse uses the snapshot from the previous connection and does not recheck service access. Refresh downloads both documents and replaces the snapshot only after they have been successfully analyzed. A failed download, invalid metadata or interrupted cache write preserves the previous snapshot; refresh failures never silently fall back to cached content.
+
+If the cache cannot be saved, the script tells you and still lets you import the freshly discovered entities. Missing or damaged snapshots can be replaced by downloading fresh. `maxResponseBytes` also limits the uncompressed documents loaded from cache. An optional non-secret `cacheDirectory` in `config/settings.js` can override the temporary cache location.
 
 Concepts are grouped by type beneath the service URL:
 

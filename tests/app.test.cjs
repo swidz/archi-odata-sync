@@ -5,7 +5,7 @@ function fixture() {
   const calls = [], auth = {header: 'Bearer test-only'}, row = {id: 'Customers', available: true};
   const io = {
     promptUrl() { calls.push('url'); return 'https://example.test/'; },
-    normalizeUrl(v) { return v; }, authenticate() { calls.push('auth'); return auth; },
+    normalizeUrl(v) { return v; }, cacheChoice() { return 'fresh'; }, authenticate() { calls.push('auth'); return auth; },
     discover() { calls.push('discover'); return [row]; }, saved() { return {}; },
     select() { calls.push('select'); return [row]; }, prepare() { calls.push('prepare'); return {}; },
     apply() { calls.push('apply'); return {entities: 1, created: 2, updated: 0}; },
@@ -20,6 +20,22 @@ test('URL and complete discovery precede selection and all mutations', () => {
 });
 test('cancel at URL causes no authentication or network access', () => {
   const f = fixture(); f.io.promptUrl = () => null; assert.equal(App.execute(f.io, {}).cancelled, true); assert.deepEqual(f.calls, []);
+});
+
+test('cached discovery skips authentication and passes the reuse choice', () => {
+  const f = fixture(); f.io.cacheChoice = () => 'reuse';
+  f.io.discover = (root, auth, settings, mode) => { assert.equal(mode, 'reuse'); assert.equal(auth.header, ''); return [{id: 'Customers'}]; };
+  App.execute(f.io, {}); assert.ok(!f.calls.includes('auth')); assert.ok(f.calls.includes('apply'));
+});
+
+test('fresh discovery authenticates and passes the explicit refresh choice', () => {
+  const f = fixture(); f.io.discover = (root, auth, settings, mode) => { assert.equal(mode, 'fresh'); assert.equal(auth, f.auth); return [{id: 'Customers'}]; };
+  App.execute(f.io, {}); assert.ok(f.calls.includes('auth'));
+});
+
+test('canceling the metadata-source choice does not authenticate, discover or mutate', () => {
+  const f = fixture(); f.io.cacheChoice = () => null;
+  assert.equal(App.execute(f.io, {}).cancelled, true); assert.deepEqual(f.calls, ['url']);
 });
 test('cancel entity selection makes no model changes and clears credentials', () => {
   const f = fixture(); f.io.select = () => null; assert.equal(App.execute(f.io, {}).cancelled, true);
@@ -63,7 +79,7 @@ test('URL prompt uses process memory across models and ignores the legacy model 
   let stored, entered = 'https://example.test/$metadata', defaultValue;
   const session = Session.create({get: () => stored, set: value => { stored = value; }});
   const context = vm.createContext({
-    ODataCore: require('../lib/core.js'), ODataSession: {current: () => session},
+    ODataCore: require('../lib/core.js'), ODataSession: {current: () => session}, ODataCache: {info: () => null},
     model: {prop() { throw Error('Connection form must not access model properties'); }},
     ODataUI: {authentication: () => null}, ODataArchi: {},
     ODataJava: {normalizeUrl: () => 'https://example.test/'},

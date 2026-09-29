@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Save the complete service entity list and metadata XML in a temporary snapshot per canonical service URL.
+- Offer Use cached metadata (default), Download fresh and Cancel, with the snapshot's download date and metadata size.
+- Reuse snapshots without authentication or HTTP requests, including across Archi restarts, for successive imports of small entity groups.
+- Validate downloaded metadata before atomically replacing the snapshot; preserve older content on failed refreshes and interrupted writes.
+- Keep credentials and cache state out of the model, bound uncompressed cache reads, and continue fresh imports with a warning if cache storage is unavailable.
+
 ## 0.6.0
 
 - Add native progress windows for authentication, downloads, metadata parsing, entity analysis, preparation and model updates.

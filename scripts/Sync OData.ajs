@@ -1,6 +1,6 @@
 (function () {
     var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
-    ["core", "oauth", "java-runtime", "session", "ui", "archi-adapter", "progress", "app"].forEach(function (name) {
+    ["core", "oauth", "java-runtime", "session", "cache", "ui", "archi-adapter", "progress", "app"].forEach(function (name) {
         load(root + "/lib/" + name + ".js");
     });
     load(root + "/config/settings.js");

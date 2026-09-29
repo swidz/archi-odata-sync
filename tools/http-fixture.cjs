@@ -7,8 +7,10 @@ const metadata = fs.readFileSync(path.join(root, 'tests/fixtures/metadata.xml'))
 const service = fs.readFileSync(path.join(root, 'tests/fixtures/service.json'));
 let tokenRequests = 0, renewed = false;
 const issued = new Set();
+const requests = {};
 const server = http.createServer((req, res) => {
   const route = req.url;
+  if (route !== '/stats') requests[route] = (requests[route] || 0) + 1;
   if (route.startsWith('/token/') || route === '/tenant/oauth2/v2.0/token') {
     tokenRequests++;
     if (route === '/token/redirect') { res.writeHead(307, {Location: '/token/resource'}); return res.end(); }
@@ -34,7 +36,13 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (route === '/stats') { res.writeHead(200); return res.end(JSON.stringify({tokenRequests})); }
+  if (route === '/stats') { res.writeHead(200); return res.end(JSON.stringify({tokenRequests, requests})); }
+  if (route.startsWith('/cache-case-') && route.endsWith('/$metadata')) {
+    const version = requests[route];
+    if (version === 3) { res.writeHead(503); return res.end('unavailable'); }
+    res.writeHead(200, {'Content-Type': 'application/xml'});
+    return res.end(version === 4 ? 'invalid XML' : metadata.toString('utf8').replace('Name="Balance"', `Name="CachedVersion${version}"`));
+  }
   if (route === '/blocked/' || (route === '/renew/' && !renewed)) { renewed = true; res.writeHead(401); return res.end(); }
   if ((route.startsWith('/oauth/') || route.startsWith('/renew/')) && !issued.has(String(req.headers.authorization).replace(/^Bearer /, ''))) { res.writeHead(401); return res.end(); }
   if (route.startsWith('/bearer/') && req.headers.authorization !== 'Bearer synthetic-test-token') { res.writeHead(401); return res.end(); }
