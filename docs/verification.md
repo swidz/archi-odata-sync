@@ -5,7 +5,7 @@ Verified on Windows with the installed Archi and jArchi 1.12/GraalJS runtime. Al
 | Check | Result |
 |---|---|
 | Node regression suite | 48 passing tests, including OAuth encoding, expiry, cleanup and authentication failures |
-| Native Archi/XML/model suite | 28 checks, including API/Entities folder creation, migration from the previous layout, folder reuse, conflict preflight, stable IDs, diagrams and Undo/Redo |
+| Native Archi/XML/model suite | 40 checks, including shared environment Nodes, Serving direction, legacy-model upgrade, cross-service isolation, ID preservation, folder grouping, preflight conflicts and Undo/Redo |
 | Native SWT dialogs | 17 checks: entity selection, OAuth form fields, validation, masked client secret and cancellation |
 | Java HTTP client with synthetic loopback service | 23 checks: OAuth acquisition and renewal, response size diagnostics, Content-Length and chunked response caps, redirect refusal, redaction and timeout |
 | Large metadata in native Archi | 6 checks: CSDL with 180,000 synthetic fields exceeds the old 32 MiB cap and completes XML parsing and entity discovery with the 256 MiB default |

@@ -21,12 +21,17 @@
     function sync(selected, serviceUrl) { var p = A.prepare(m, serviceUrl || url, selected, {}); return A.apply(m, p); }
     function concept(name, role, serviceUrl) { return A.index(m)[C.key(serviceUrl || url, name, role)]; }
     var first = sync([rows[0]]), intf = concept("Customers", "interface"), data = concept("Customers", "data"), rel = concept("Customers", "access");
-    ok(first.created === 2 && String(intf.type) === "application-interface" && String(data.type) === "data-object", "Creates Application Interface and Data Object");
+    ok(first.created === 3 && first.entities === 1 && String(intf.type) === "application-interface" && String(data.type) === "data-object", "Creates an environment plus interface/data pair and counts one selected entity");
+    var environment = concept("", "environment"), serving = concept("Customers", "serving"), environmentId = String(environment.id), servingId = String(serving.id);
+    ok(String(environment.type) === "node" && String(environment.prop("OData-ServiceUrl")) === url, "Creates one environment Node identified by the OData service URL");
+    ok(String(serving.type) === "serving-relationship" && String(serving.source.id) === environmentId && String(serving.target.id) === String(intf.id), "Serving points from the environment to the OData API interface");
     ok(String(intf.name) === "Customers" && String(data.name) === "Customers", "Both elements use the entity-set name");
     ok(String(rel.accessType) === "readwrite" && String(rel.source.id) === String(intf.id) && String(rel.target.id) === String(data.id), "Access direction is Interface to Data Object with Read/Write");
     function parent(e) { return $(e).parent().first(); }
     ok(String(parent(intf).name) === "API" && String(parent(data).name) === "Entities" && String(parent(parent(intf)).name) === url && String(parent(parent(intf)).id) === String(parent(parent(data)).id), "Interfaces and Data Objects use API and Entities beneath the same service folder");
     ok(String(parent(rel).name) === url && String(parent(parent(rel)).name) === "OData", "Access relationships stay under Relations/OData/service URL");
+    ok(String(parent(environment).name) === url && String(parent(parent(environment)).name) === "OData" && String(parent(parent(parent(environment))).id) !== String(parent(parent(parent(parent(intf)))).id), "Environment uses its own infrastructure category under OData/service URL");
+    ok(String(parent(serving).id) === String(parent(rel).id), "Serving and Access relationships share the Relations service folder");
     ok(String(data.documentation).indexOf("1. **Id**") >= 0 && String(data.documentation).indexOf("Address\\.City") >= 0, "Data Object documentation contains numbered field markup");
     var intfId = String(intf.id), dataId = String(data.id), relId = String(rel.id);
     var view = m.createArchimateView("Existing diagram"), visual = view.add(intf, 30, 40, 150, 70);
@@ -42,18 +47,39 @@
     ok(String(parent(intf).id) === String(legacyService.id) && String(parent(data).id) === String(legacyService.id), "Undo restores the original service-level folders");
     stack.redo(); Handler.init();
     ok(String(parent(intf).id) === apiId && String(parent(data).id) === entitiesId && String(rel.id) === relId, "Redo restores type folders while retaining relationship identity");
-    ok(Object.keys(A.index(m)).length === 3 && String(concept("Customers", "interface").id) === intfId && String(concept("Customers", "data").id) === dataId && String(concept("Customers", "access").id) === relId, "Repeat sync retains all IDs despite diagram instances");
+    ok(Object.keys(A.index(m)).length === 5 && String(concept("Customers", "interface").id) === intfId && String(concept("Customers", "data").id) === dataId && String(concept("Customers", "access").id) === relId, "Repeat sync retains all IDs despite diagram instances");
+    ok(String(concept("", "environment").id) === environmentId && String(concept("Customers", "serving").id) === servingId, "Repeated sync reuses the same environment and Serving relationship");
     ok(String(data.documentation).indexOf("Architect notes") === 0 && String(data.prop("Manual")) === "keep" && Number(visual.bounds.x) === 30, "Manual notes, properties and diagram layout survive refresh");
     sync([rows[0]]);
     ok(String(parent(intf).id) === apiId && String(parent(data).id) === entitiesId, "Repeated sync reuses the same type folders");
+    // Upgrade an existing v0.3 model with no environment or Serving relationship.
+    serving.delete(); environment.delete();
+    var upgrade = sync([rows[0]]); environment = concept("", "environment"); serving = concept("Customers", "serving");
+    environmentId = String(environment.id); servingId = String(serving.id);
+    ok(upgrade.created === 1 && String(intf.id) === intfId && String(data.id) === dataId && String(rel.id) === relId, "Upgrade adds the environment and Serving link without replacing existing interfaces, data or Access");
+    environment.name = "Custom environment name"; environment.documentation = "Environment notes\n\n" + environment.documentation; environment.prop("Manual", "keep");
     var oldDocumentation = String(data.documentation), oldTime = String(data.prop("OData-LastSyncAt")), oldParent = String(parent(data).id);
     sync([rows[1]]);
-    ok(Object.keys(A.index(m)).length === 6 && String(data.documentation) === oldDocumentation && String(data.prop("OData-LastSyncAt")) === oldTime && String(parent(data).id) === oldParent, "A different selection preserves earlier entities and folders untouched");
+    ok(Object.keys(A.index(m)).length === 9 && String(data.documentation) === oldDocumentation && String(data.prop("OData-LastSyncAt")) === oldTime && String(parent(data).id) === oldParent, "A different selection preserves earlier entities and folders untouched");
+    ok(String(concept("Orders", "serving").source.id) === environmentId && String(concept("Orders", "serving").target.id) === String(concept("Orders", "interface").id) && String(concept("Customers", "serving").id) === servingId, "Additional entity selection shares the environment and preserves prior Serving links");
+    ok(String(environment.name) === "Custom environment name" && String(environment.documentation).indexOf("Environment notes") === 0 && String(environment.prop("Manual")) === "keep", "Environment name, manual notes and properties survive refresh");
     ok(A.saved(m)[url].join(",") === "Orders", "Selection is remembered per service");
     var changed = Object.assign({}, rows[0], {fields: rows[0].fields.filter(function (f) { return f.path !== "Balance"; })}); sync([changed]);
     ok(String(data.documentation).indexOf("**Balance**") < 0 && String(data.documentation).indexOf("Architect notes") === 0, "Metadata refresh removes old fields and keeps manual notes");
     sync([rows[0]], "https://another.example.test/odata/");
     ok(String(concept("Customers", "data", "https://another.example.test/odata/").id) !== dataId, "Same-named entities from different services remain distinct");
+    ok(String(concept("", "environment", "https://another.example.test/odata/").id) !== environmentId && String(concept("Customers", "serving", "https://another.example.test/odata/").target.id) === String(concept("Customers", "interface", "https://another.example.test/odata/").id), "Different service URLs get distinct environments and correctly scoped Serving links");
+    var invalidRoot = "https://invalid-environment.example.test/odata/", invalidEnvironment = m.createElement("application-component", "Wrong type");
+    invalidEnvironment.prop("OData-ManagedBy", C.OWNER); invalidEnvironment.prop("OData-Key", C.key(invalidRoot, "", "environment"));
+    var beforeInvalid = Object.keys(A.index(m)).length; blocked = false;
+    try { A.prepare(m, invalidRoot, [rows[0]], {}); } catch (e) { blocked = String(e.message).indexOf("environment has an unexpected Archi type") >= 0; }
+    ok(blocked && Object.keys(A.index(m)).length === beforeInvalid, "Wrong environment type blocks the entire plan before creating interfaces or relationships"); invalidEnvironment.delete();
+    var invalidApi = m.createElement("application-interface", "Wrong source target"), wrongServing = m.createRelationship("serving-relationship", "", environment, invalidApi);
+    invalidApi.prop("OData-ManagedBy", C.OWNER); invalidApi.prop("OData-Key", C.key(invalidRoot, rows[0].name, "interface"));
+    wrongServing.prop("OData-ManagedBy", C.OWNER); wrongServing.prop("OData-Key", C.key(invalidRoot, rows[0].name, "serving"));
+    beforeInvalid = Object.keys(A.index(m)).length; blocked = false;
+    try { A.prepare(m, invalidRoot, [rows[0]], {}); } catch (e) { blocked = String(e.message).indexOf("Serving relationship has changed endpoints") >= 0; }
+    ok(blocked && Object.keys(A.index(m)).length === beforeInvalid && !concept("", "environment", invalidRoot), "Serving link with a different environment blocks preflight before any mutation"); wrongServing.delete(); invalidApi.delete();
     var duplicate = m.createElement("data-object", "Duplicate"); duplicate.prop("OData-ManagedBy", C.OWNER); duplicate.prop("OData-Key", C.key(url, "Customers", "data"));
     blocked = false; try { A.prepare(m, url, [rows[0]], {}); } catch (e) { blocked = true; }
     ok(blocked, "Duplicate managed identity blocks preflight"); duplicate.delete();
@@ -68,9 +94,11 @@
     Handler.finalise(); Handler.init();
     var undoRoot = "https://undo.example.test/odata/"; sync([rows[0]], undoRoot); Handler.finalise();
     var undoId = String(concept("Customers", "data", undoRoot).id);
+    var undoEnvironmentId = String(concept("", "environment", undoRoot).id), undoServingId = String(concept("Customers", "serving", undoRoot).id);
     ok(stack.canUndo(), "Synchronization creates a native Undo operation"); stack.undo();
-    ok(!concept("Customers", "data", undoRoot) && !A.saved(m)[undoRoot], "Undo removes the imported pair and restores saved selection"); stack.redo();
+    ok(!concept("Customers", "data", undoRoot) && !concept("", "environment", undoRoot) && !concept("Customers", "serving", undoRoot) && !A.saved(m)[undoRoot], "Undo removes the environment, imported pair and Serving link and restores saved selection"); stack.redo();
     ok(String(concept("Customers", "data", undoRoot).id) === undoId && String(concept("Customers", "access", undoRoot).accessType) === "readwrite", "Redo restores element IDs and Read/Write Access"); Handler.init();
+    ok(String(concept("", "environment", undoRoot).id) === undoEnvironmentId && String(concept("Customers", "serving", undoRoot).id) === undoServingId, "Redo restores environment and Serving IDs");
     J.write(root + "/work/archi-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
     console.log("ODATA_ARCHI_SMOKE_PASSED: " + checks.length);
 }());

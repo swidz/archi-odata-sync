@@ -9,6 +9,8 @@ For every checked entity, it creates or updates:
 | Advertised entity set | Application Interface | Entity-set name |
 | Entity's data structure | Data Object (application layer) | Same entity-set name |
 | Interface → Data Object | Access relationship, **Read/Write** | Unnamed |
+| OData service environment (one per service URL) | Node (Technology & Physical layer) | `OData Environment - <service URL>` |
+| Environment → Application Interface | **Serving** relationship | Unnamed |
 
 Both elements contain the available fields in their **Documentation** tab as a **numbered Markdown enumeration**. The data object represents the table/entity. The numbered list remains readable in Archi's plain-text documentation editor; Markdown-aware report tools can render the markup.
 
@@ -50,6 +52,10 @@ Application
 ```
 
 Access relationships are under **Relations / OData / service URL**. On the next sync, selected existing interfaces and data objects move into the corresponding type folders, preserving their IDs, documentation, diagram instances and relationships. Unselected entities keep their existing folders; select them in a later run to reorganize them. Folder moves are included in the script's Undo operation.
+
+The infrastructure environment Node is placed under **Technology & Physical / OData / service URL**. One environment is shared by all interfaces imported from the same service URL. It **serves each selected API interface**, which in turn has Read/Write Access to its Data Object. Serving relationships are stored beside Access relationships under **Relations / OData / service URL**.
+
+Rerunning an older model adds the environment and missing Serving links for the selected entities. Existing Node and Serving IDs are reused; unselected interfaces and their existing links remain untouched. You can rename the environment Node and add documentation outside its generated block; these edits are preserved. Different service URLs get separate environment Nodes. The Node represents the service environment for this architecture mapping; the script does not discover physical hosting infrastructure.
 
 ### OAuth 2.0 connection
 

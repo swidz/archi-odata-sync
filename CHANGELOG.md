@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Create one environment Node per OData service URL in the Technology & Physical layer.
+- Add Serving relationships from the environment to each selected Application Interface.
+- Add missing environments and Serving links when existing models are resynchronized; retain IDs, environment names, manual notes and unselected entity links.
+- Include the environment and Serving relationships in native Undo/Redo and preflight validation.
+
 ## 0.3.0
 
 - Group Application Interfaces under `OData / service URL / API` and Data Objects under `OData / service URL / Entities`.
