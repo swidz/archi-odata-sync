@@ -43,12 +43,12 @@ New concepts are placed under **Application / OData / service URL**. Access rela
 
 ### OAuth 2.0 connection
 
-The OData URL identifies the service to inspect. The OAuth token URL is a separate endpoint used to obtain the access token; enter the full endpoint, including the tenant when applicable.
+The OData URL identifies the service to inspect. The OAuth token URL is prefilled with the Microsoft Entra v2 template below. Replace `{tenant-id}` with your tenant ID, or enter another full token endpoint. A configured `oauthTokenUrl` takes precedence over the template.
 
 | Input | Example / meaning |
 |---|---|
 | OData service URL | `https://your-environment.example.com/data/` |
-| OAuth token URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/token` |
+| OAuth token URL | `https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token` |
 | Resource | `https://your-environment.example.com` — the API's registered resource/audience identifier |
 | Client ID | Application registration's client ID |
 | Client secret | The secret **value**, not the secret's ID |

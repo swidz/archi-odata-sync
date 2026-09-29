@@ -1,7 +1,7 @@
 /* Non-secret defaults. Never place passwords or tokens in this file. */
 var ODATA_SETTINGS = {
     defaultUrl: "",
-    oauthTokenUrl: "",
+    oauthTokenUrl: "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
     oauthResource: "",
     oauthClientId: "",
     rootFolderName: "OData",
