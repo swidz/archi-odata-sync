@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+- Add native progress windows for authentication, downloads, metadata parsing, entity analysis, preparation and model updates.
+- Run authentication/discovery in an isolated background GraalJS context while the UI remains responsive; require the GraalJS engine.
+- Show actual downloaded MB and percentages when Content-Length is known, activity indicators for unknown work, and element/entity counters during synchronization.
+- Allow cancellation before model changes, disable cancellation once application begins, and retain native Undo/Redo.
+- Close progress windows and clear per-run credentials on completion, cancellation and errors; preserve session-only connection defaults.
+
 ## 0.5.0
 
 - Remember the last OData URL and submitted OAuth/Basic connection values, including masked secrets, in process memory until Archi closes.

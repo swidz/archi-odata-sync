@@ -13,7 +13,8 @@
     error = "";
     try { J.get(base, base + "oversize-metadata/$metadata", "application/xml", {header: ""}, {maxResponseBytes: 1000}); } catch (e) { error = String(e.message || e); }
     ok(error.indexOf("OData $metadata document") >= 0 && error.indexOf("1048576 bytes") >= 0, "Metadata size errors identify the document and advertised byte count");
-    var rows = J.discover(base + "big-metadata/", {header: ""}, ODATA_SETTINGS, function (message) { console.log(message); });
+    var lastStage = "";
+    var rows = J.discover(base + "big-metadata/", {header: ""}, ODATA_SETTINGS, function (message) { if (message !== lastStage) { console.log(message); lastStage = message; } });
     ok(rows.length === 2 && rows.every(function (r) { return r.available; }), "Large CSDL downloads, parses and joins to the entity selection list");
     ok(rows[0].fields.length === 7 && rows[0].fields[0].key, "Large metadata preserves field and inherited-key discovery");
     // Verify fallback too, without materializing the large response a second time.

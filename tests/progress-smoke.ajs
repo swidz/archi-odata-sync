@@ -1,0 +1,70 @@
+/* Native progress, isolated background discovery, cancellation and UI-thread model updates. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "oauth", "java-runtime", "session", "ui", "archi-adapter", "progress"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    var checks = [], SWT = Java.type("org.eclipse.swt.SWT"), Event = Java.type("org.eclipse.swt.widgets.Event"), Display = Java.type("org.eclipse.swt.widgets.Display"), display = Display.getDefault();
+    function ok(value, message) { ODataCore.assert(value, message); checks.push(message); }
+    function walk(w, list) { list.push(w); if (w.getChildren) Java.from(w.getChildren()).forEach(function (child) { walk(child, list); }); return list; }
+    function dialog() { return Java.from(display.getShells()).filter(function (s) { return String(s.getText()) === "OData synchronization"; })[0]; }
+    function widgets(type) { return walk(dialog(), []).filter(function (w) { return String(w.getClass().getSimpleName()) === type; }); }
+    function clickCancel() { widgets("Button")[0].notifyListeners(SWT.Selection, new Event()); }
+    var p = ODataUI.progress(); p.update("Downloading metadata...", 1000000, 2000000, "bytes");
+    ok(widgets("Label").some(function (w) { return String(w.getText()).indexOf("1.00 MB of 2.00 MB (50%)") >= 0; }), "Known download length displays MB and percentage");
+    ok(widgets("ProgressBar").some(function (w) { return w.getVisible() && w.getSelection() === 500; }), "Known length uses the determinate progress bar");
+    for (var frame = 0; frame < 15; frame++) { p.check(); Java.type("java.lang.Thread").sleep(20); }
+    var bounds = dialog().getClientArea(), preview = new (Java.type("org.eclipse.swt.graphics.Image"))(display, bounds.width, bounds.height), gc = new (Java.type("org.eclipse.swt.graphics.GC"))(dialog());
+    try {
+        gc.copyArea(preview, 0, 0); var loader = new (Java.type("org.eclipse.swt.graphics.ImageLoader"))();
+        loader.data = Java.to([preview.getImageData()], "org.eclipse.swt.graphics.ImageData[]"); loader.save(root + "/work/progress-preview.png", SWT.IMAGE_PNG);
+    } finally { gc.dispose(); preview.dispose(); }
+    p.update("Downloading metadata...", 1000000, -1, "bytes");
+    ok(widgets("ProgressBar").some(function (w) { return w.getVisible() && (Number(w.getStyle()) & Number(SWT.INDETERMINATE)) !== 0; }), "Missing download length uses an activity indicator");
+    clickCancel(); var canceled = false; try { p.check(); } catch (e) { canceled = !!e.cancelled; } p.close();
+    ok(canceled && !dialog(), "Cancel is reported distinctly and the progress window closes");
+    p = ODataUI.progress(); p.lock(); clickCancel(); p.check();
+    ok(!widgets("Button")[0].getEnabled() && !p.cancelled(), "Cancel cannot interrupt model mutations after the commit boundary");
+    var closeEvent = new Event(); closeEvent.doit = true; dialog().notifyListeners(SWT.Close, closeEvent);
+    ok(!closeEvent.doit && !p.cancelled(), "Closing the progress window cannot interrupt model updates"); p.close();
+    var base = String(Java.type("java.nio.file.Files").readString(Java.type("java.nio.file.Paths").get(root + "/work/http-fixture-url.txt"))).trim();
+    var original = ODataUI.progress, updates = [], cancelStage = "", uiTicks = 0;
+    ODataUI.progress = function () {
+        var window = original(), update = window.update;
+        window.update = function (stage, completed, total, unit) {
+            update(stage, completed, total, unit); updates.push({stage: stage, completed: completed, total: total, unit: unit});
+            if (cancelStage && stage === cancelStage) { cancelStage = ""; display.timerExec(0, function () { if (dialog()) { uiTicks++; clickCancel(); } }); }
+        };
+        return window;
+    };
+    var auth = {credentials: {tokenUrl: base + "token/resource", resource: "https://resource.example.test", clientId: "synthetic-client", clientSecret: "a+b &=/%?é!()"}, clear: function () { this.credentials.clientSecret = ""; }};
+    var rows = ODataProgress.discovery(root, base + "oauth/", auth, {});
+    ok(rows.length === 2 && rows.every(function (row) { return row.available; }), "Background OAuth and discovery return complete entity metadata");
+    ok(auth.credentials.clientSecret === "" && !dialog(), "Discovery clears the run credential copy and disposes its progress window");
+    auth.credentials.clientSecret = "a+b &=/%?é!()"; auth.credentials.tokenUrl = base + "token/slow";
+    cancelStage = "Authenticating..."; canceled = false;
+    try { ODataProgress.discovery(root, base + "oauth/", auth, {}); } catch (e) { canceled = !!e.cancelled; }
+    ok(canceled && auth.credentials.clientSecret === "" && !dialog(), "Cancellation during a waiting OAuth request stays responsive and clears its credential copy");
+    updates = []; rows = ODataProgress.discovery(root, base + "progress/", {header: ""}, {});
+    ok(updates.some(function (u) { return u.unit === "bytes" && u.total > 0 && u.completed > 0 && u.completed < u.total; }), "Background download reports actual intermediate byte progress");
+    cancelStage = "Downloading metadata..."; canceled = false;
+    try { ODataProgress.discovery(root, base + "progress/", {header: ""}, {}); } catch (e) { canceled = !!e.cancelled; }
+    ok(canceled && uiTicks > 0 && !dialog(), "SWT events run during background discovery and cancellation closes without returning entities");
+    var failure = ""; try { ODataProgress.discovery(root, base + "denied/", {header: ""}, {}); } catch (e) { failure = String(e.message); }
+    ok(failure.indexOf("401") >= 0 && failure.indexOf("Sensitive") < 0 && !dialog(), "Background failures preserve safe diagnostics and close the dialog");
+    var model = $.model.create("Disposable progress test"); model.setAsCurrent();
+    var unwrap = Java.type("com.archimatetool.script.dom.model.ArchimateModelProxy").class.getDeclaredMethod("getEObject", Java.to([], "java.lang.Class[]"));
+    unwrap.setAccessible(true); var raw = unwrap.invoke(model), Stack = Java.type("org.eclipse.gef.commands.CommandStack"), stack = new Stack(); raw.setAdapter(Stack.class, stack);
+    cancelStage = "Preparing model updates..."; canceled = false;
+    try { ODataProgress.synchronize(model, base + "progress/", rows, {}); } catch (e) { canceled = !!e.cancelled; }
+    ok(canceled && Object.keys(ODataArchi.index(model)).length === 0 && !dialog(), "Cancellation during preflight leaves the model untouched");
+    var Handler = Java.type("com.archimatetool.script.commands.CommandHandler"); Handler.finalise(); Handler.init();
+    updates = []; var result = ODataProgress.synchronize(model, base + "progress/", rows, {}); Handler.finalise();
+    ok(result.entities === 2 && Object.keys(ODataArchi.index(model)).length === 9 && !dialog(), "Progress synchronization creates the full environment, pairs and relationships");
+    ok(updates.some(function (u) { return u.stage === "Synchronizing entities..." && u.completed === 2 && u.total === 2; }), "Entity counter reaches the actual completed total");
+    stack.undo(); ok(Object.keys(ODataArchi.index(model)).length === 0, "One Undo reverts the model changes made with progress events");
+    stack.redo(); ok(Object.keys(ODataArchi.index(model)).length === 9, "Redo restores all concepts and relationships after progress synchronization"); Handler.init();
+    updates = []; var largeRows = ODataProgress.discovery(root, base + "big-metadata/", {header: ""}, {});
+    ok(largeRows.length === 2 && updates.some(function (u) { return u.stage === "Parsing metadata..."; }), "Large metadata parses in the background with visible parsing status");
+    ODataUI.progress = original;
+    ODataJava.write(root + "/work/progress-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_PROGRESS_SMOKE_PASSED: " + checks.length);
+}());

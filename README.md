@@ -16,7 +16,7 @@ Both elements contain the available fields in their **Documentation** tab as a *
 
 ## Install
 
-Requires Archi with jArchi installed and a JavaScript engine supporting Java interop (tested with GraalJS in jArchi 1.12). The runtime uses the bundled JDK's HTTP/XML APIs. Node.js and npm are needed only for development tests.
+Requires Archi with jArchi installed and the **GraalJS** JavaScript engine (tested in jArchi 1.12). Responsive background discovery uses an isolated GraalJS context and the bundled JDK's HTTP/XML APIs. Node.js and npm are needed only for development tests.
 
 1. Extract the release ZIP.
 2. Copy the entire `archi-odata-sync` directory under your jArchi Scripts directory. Keep `scripts`, `lib`, and `config` together.
@@ -40,6 +40,10 @@ The installer creates a new package directory and refuses to overwrite an existi
 5. Click **Synchronize**. Review the result and save your model when ready.
 
 The popup lists the entity-set name, title, type, and field count or an explanation of unavailable metadata. Newly discovered entries start unchecked; the last successful selection is remembered separately for each service. Cancel closes the operation without changing the model.
+
+A progress window shows authentication, downloading, metadata parsing and entity analysis. Downloads show received **MB** and a percentage when the server supplies a total size; otherwise an activity indicator is shown. Authentication and discovery run in the background so Archi can process UI events. The window closes before the entity picker opens.
+
+After **Synchronize**, progress shows preparation, updated elements and completed entities. **Cancel** is available during discovery and preparation. Canceling leaves the model unchanged; an active network request or XML parse may need to finish or time out before the window closes. Once model updates start, Cancel and window closing are disabled. The updates remain a single **Edit > Undo** operation. Progress is specific to each stage, with no estimated overall percentage.
 
 Concepts are grouped by type beneath the service URL:
 

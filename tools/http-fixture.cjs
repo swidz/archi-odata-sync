@@ -29,7 +29,8 @@ const server = http.createServer((req, res) => {
       if (route === '/token/non-json') { res.writeHead(200); return res.end('not json'); }
       const token = 'oauth-' + tokenRequests; issued.add(token);
       res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({access_token: token, token_type: route === '/token/wrong-type' ? 'MAC' : 'Bearer', expires_in: 3600}));
+      const reply = () => res.end(JSON.stringify({access_token: token, token_type: route === '/token/wrong-type' ? 'MAC' : 'Bearer', expires_in: 3600}));
+      if (route === '/token/slow') setTimeout(reply, 1000); else reply();
     });
     return;
   }
@@ -57,6 +58,13 @@ const server = http.createServer((req, res) => {
     return res.end(metadata.subarray(schemaEnd));
   }
   if (route === '/slow/') { res.writeHead(200); return setTimeout(() => res.end('{}'), 1500); }
+  if (route === '/progress/$metadata') {
+    const content = Buffer.concat([metadata.subarray(0, metadata.length - 1), Buffer.from(' '.repeat(500000)), metadata.subarray(metadata.length - 1)]);
+    res.writeHead(200, {'Content-Type': 'application/xml', 'Content-Length': content.length});
+    let offset = 0;
+    const timer = setInterval(() => { res.write(content.subarray(offset, offset + 50000)); offset += 50000; if (offset >= content.length) { clearInterval(timer); res.end(); } }, 80);
+    res.on('close', () => clearInterval(timer)); return;
+  }
   if (route.endsWith('$metadata')) { res.writeHead(200, {'Content-Type': 'application/xml', 'OData-Version': '4.0'}); return res.end(metadata); }
   if (route.endsWith('/')) { res.writeHead(200, {'Content-Type': 'application/json', 'OData-Version': '4.0'}); return res.end(service); }
   res.writeHead(500); res.end('Entity record endpoints must never be requested.');

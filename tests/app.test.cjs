@@ -8,7 +8,8 @@ function fixture() {
     normalizeUrl(v) { return v; }, authenticate() { calls.push('auth'); return auth; },
     discover() { calls.push('discover'); return [row]; }, saved() { return {}; },
     select() { calls.push('select'); return [row]; }, prepare() { calls.push('prepare'); return {}; },
-    apply() { calls.push('apply'); return {entities: 1, created: 2, updated: 0}; }, info() {}
+    apply() { calls.push('apply'); return {entities: 1, created: 2, updated: 0}; },
+    synchronize(root, rows, options) { return io.apply(io.prepare(root, rows, options)); }, info() {}
   };
   return {io, calls, auth};
 }
@@ -45,6 +46,16 @@ test('OAuth authentication failure occurs before discovery or model changes', ()
   const f = fixture(); f.io.authenticate = () => { throw Error('invalid_client'); };
   assert.throws(() => App.execute(f.io, {}), /invalid_client/);
   assert.deepEqual(f.calls, ['url']);
+});
+
+test('canceling progress never reaches model application and clears run credentials', () => {
+  for (const phase of ['discover', 'prepare']) {
+    const f = fixture(); let cleared = false;
+    f.auth.clear = () => { cleared = true; };
+    f.io[phase] = () => { throw Object.assign(Error('canceled'), {cancelled: true}); };
+    assert.throws(() => App.execute(f.io, {}), error => error.cancelled);
+    assert.ok(cleared); assert.ok(!f.calls.includes('apply'));
+  }
 });
 
 test('URL prompt uses process memory across models and ignores the legacy model property', () => {

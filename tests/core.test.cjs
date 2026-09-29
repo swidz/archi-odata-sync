@@ -44,6 +44,14 @@ test('lists unavailable entities without silently creating incomplete objects', 
   const r = C.discover({value: [{name: 'Missing', url: 'Missing'}]}, metadata(), root, resolve)[0];
   assert.equal(r.available, false); assert.match(r.status, /missing from/);
 });
+
+test('entity analysis reports real entity totals and propagates cancellation', () => {
+  const service = {value: [{name: 'Customers', url: 'Customers'}, {name: 'Current', kind: 'Singleton', url: 'Current'}]}, progress = [];
+  C.discover(service, metadata(), root, resolve, (stage, done, total) => progress.push([done, total]));
+  assert.deepEqual(progress, [[0, 1], [1, 1]]);
+  const canceled = Object.assign(Error('canceled'), {cancelled: true});
+  assert.throws(() => C.discover(service, metadata(), root, resolve, () => { throw canceled; }), error => error === canceled);
+});
 test('cyclic inheritance disables only affected entity sets', () => {
   const m = metadata(); m.schemas[0].types[0].base = 'D.Customer';
   assert.match(rows(m)[0].status, /Cyclic/);
