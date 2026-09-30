@@ -1,0 +1,57 @@
+<!-- Synthetic, acyclic CSDL with a small input and a large expanded field tree. -->
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+  <edmx:DataServices>
+    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="D">
+      <EntityType Name="Root"><Key><PropertyRef Name="Id"/></Key><Property Name="Id" Type="Edm.Int32" Nullable="false"/><Property Name="Tree" Type="D.T0"/></EntityType>
+      <ComplexType Name="T0">
+        <Property Name="F0" Type="D.T1"/>
+        <Property Name="F1" Type="D.T1"/>
+        <Property Name="F2" Type="D.T1"/>
+        <Property Name="F3" Type="D.T1"/>
+      </ComplexType>
+      <ComplexType Name="T1">
+        <Property Name="F0" Type="D.T2"/>
+        <Property Name="F1" Type="D.T2"/>
+        <Property Name="F2" Type="D.T2"/>
+        <Property Name="F3" Type="D.T2"/>
+      </ComplexType>
+      <ComplexType Name="T2">
+        <Property Name="F0" Type="D.T3"/>
+        <Property Name="F1" Type="D.T3"/>
+        <Property Name="F2" Type="D.T3"/>
+        <Property Name="F3" Type="D.T3"/>
+      </ComplexType>
+      <ComplexType Name="T3">
+        <Property Name="F0" Type="D.T4"/>
+        <Property Name="F1" Type="D.T4"/>
+        <Property Name="F2" Type="D.T4"/>
+        <Property Name="F3" Type="D.T4"/>
+      </ComplexType>
+      <ComplexType Name="T4">
+        <Property Name="F0" Type="D.T5"/>
+        <Property Name="F1" Type="D.T5"/>
+        <Property Name="F2" Type="D.T5"/>
+        <Property Name="F3" Type="D.T5"/>
+      </ComplexType>
+      <ComplexType Name="T5">
+        <Property Name="F0" Type="D.T6"/>
+        <Property Name="F1" Type="D.T6"/>
+        <Property Name="F2" Type="D.T6"/>
+        <Property Name="F3" Type="D.T6"/>
+      </ComplexType>
+      <ComplexType Name="T6">
+        <Property Name="F0" Type="D.T7"/>
+        <Property Name="F1" Type="D.T7"/>
+        <Property Name="F2" Type="D.T7"/>
+        <Property Name="F3" Type="D.T7"/>
+      </ComplexType>
+      <ComplexType Name="T7">
+        <Property Name="F0" Type="Edm.String"/>
+        <Property Name="F1" Type="Edm.String"/>
+        <Property Name="F2" Type="Edm.String"/>
+        <Property Name="F3" Type="Edm.String"/>
+      </ComplexType>
+      <EntityContainer Name="Container"><EntitySet Name="Roots" EntityType="D.Root"/></EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

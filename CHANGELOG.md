@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+- Bound per-entity and total field expansion for fresh and cached metadata; reject partial entity results and preserve previous snapshots on overall-budget failures.
+- Check cancellation within entity expansion and type resolution, and propagate cancellation without converting it into unavailable metadata.
+- Replace quadratic duplicate-field scans with name lookups and reuse resolved types in a bounded cache; walk inheritance without recursive stack growth.
+- Clarify analysis and cleanup boundaries in code, and always disconnect HTTP connections when response-stream cleanup fails.
+
 ## 0.7.0
 
 - Save the complete service entity list and metadata XML in a temporary snapshot per canonical service URL.

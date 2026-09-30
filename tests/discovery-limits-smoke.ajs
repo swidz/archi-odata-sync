@@ -1,0 +1,76 @@
+/* Resource limits and cancellation using synthetic XML, a loopback server and an isolated cache. */
+(function () {
+    var root = String(Java.type("java.nio.file.Paths").get(__DIR__).getParent().toAbsolutePath());
+    ["core", "oauth", "java-runtime", "cache", "ui", "progress"].forEach(function (f) { load(root + "/lib/" + f + ".js"); });
+    load(root + "/config/settings.js");
+    var Files = Java.type("java.nio.file.Files"), Paths = Java.type("java.nio.file.Paths"), checks = [];
+    function ok(value, message) { ODataCore.assert(value, message); checks.push(message); }
+    var base = String(Files.readString(Paths.get(root + "/work/http-fixture-url.txt"))).trim(), url = base + "branching/";
+    var xml = String(Files.readString(Paths.get(root + "/tests/fixtures/branching-metadata.xml")));
+    var documents = {service: JSON.stringify({value: [{name: "Roots", url: "Roots"}]}), metadata: xml};
+    var rows = ODataJava.discoverDocuments(url, documents);
+    ok(ODATA_SETTINGS.maxExpandedFieldsPerEntity === 10000 && ODATA_SETTINGS.maxTotalExpandedFields === 500000,
+        "Packaged limits match the defaults used without settings");
+    ok(!rows[0].available && rows[0].fields.length === 0 && rows[0].status.indexOf("10000") >= 0,
+        "Small branching XML hits the default entity limit without exposing partial fields");
+    rows = ODataJava.discoverDocuments(url, documents, null, {maxExpandedFieldsPerEntity: 100000});
+    ok(rows[0].available && rows[0].fields.length === 87382 && rows[0].fields[0].key,
+        "An explicit higher budget preserves all complex paths and inherited field semantics");
+    rows = null;
+    var canceled = {cancelled: true, message: "Canceled during expansion"}, ticks = 0, seen;
+    try {
+        ODataCore.discover(JSON.parse(documents.service), ODataJava.parseMetadata(xml), url, ODataJava.endpoint,
+            function () { if (++ticks === 2) throw canceled; });
+    } catch (e) { seen = e; }
+    ok(seen === canceled, "Cancellation from within one entity propagates without becoming an unavailable row");
+    rows = ODataJava.discover(url, {header: ""}, {maxExpandedFieldsPerEntity: 60});
+    ok(!rows[0].available && rows[0].status.indexOf("(60)") >= 0, "The synchronous download pipeline forwards configured field limits");
+
+    var settings = {cacheDirectory: root + "/work/limits-cache-" + String(Java.type("java.util.UUID").randomUUID()), maxExpandedFieldsPerEntity: 60};
+    ODataCache.save(url, documents, settings);
+    function discover(mode, options) { return ODataProgress.discovery(root, url, {header: ""}, options || settings, mode); }
+    rows = discover("reuse");
+    ok(!rows[0].available && rows[0].status.indexOf("(60)") >= 0, "Cached worker discovery applies the configured entity limit");
+    var limited = Object.assign({}, settings, {maxTotalExpandedFields: 10}), error = "";
+    try { discover("reuse", limited); } catch (e) { error = String(e.message); }
+    ok(error.indexOf("maxTotalExpandedFields (10)") >= 0 && error.indexOf("Download fresh") < 0,
+        "A cached overall-budget error retains its actionable setting instead of suggesting a redownload");
+    error = "";
+    try { discover("reuse", Object.assign({}, settings, {maxExpandedFieldsPerEntity: 0})); } catch (e) { error = String(e.message); }
+    ok(error.indexOf("maxExpandedFieldsPerEntity") >= 0 && error.indexOf("positive whole number") >= 0,
+        "Invalid settings remain actionable through the cached worker");
+    rows = discover("fresh");
+    ok(!rows[0].available && rows[0].status.indexOf("(60)") >= 0, "Fresh worker discovery applies the same entity limit");
+    function snapshot() { return String(Java.type("java.util.Base64").getEncoder().encodeToString(Files.readAllBytes(ODataCache.location(url, settings)))); }
+    var previous = snapshot(); error = "";
+    try { discover("fresh", limited); } catch (e) { error = String(e.message); }
+    ok(error.indexOf("maxTotalExpandedFields (10)") >= 0 && snapshot() === previous,
+        "Whole-discovery budget failures preserve the previous complete snapshot");
+
+    var original = ODataUI.progress, display = Java.type("org.eclipse.swt.widgets.Display").getDefault();
+    var SWT = Java.type("org.eclipse.swt.SWT"), Event = Java.type("org.eclipse.swt.widgets.Event"), cancelClicked = false;
+    function dialog() {
+        return Java.from(display.getShells()).filter(function (shell) { return String(shell.getText()) === "OData synchronization"; })[0];
+    }
+    function clickCancel(widget) {
+        if (String(widget.getClass().getSimpleName()) === "Button" && String(widget.getText()) === "Cancel") {
+            widget.notifyListeners(SWT.Selection, new Event()); cancelClicked = true;
+        } else if (widget.getChildren) Java.from(widget.getChildren()).forEach(clickCancel);
+    }
+    ODataUI.progress = function () {
+        var window = original(), update = window.update;
+        window.update = function (stage, completed, total, unit) {
+            update(stage, completed, total, unit);
+            if (!cancelClicked && stage === "Analyzing entities...") { var shell = dialog(); if (shell) clickCancel(shell); }
+        };
+        return window;
+    };
+    var stopped = false;
+    try { discover("reuse", Object.assign({}, settings, {maxExpandedFieldsPerEntity: 100000})); }
+    catch (e) { stopped = !!e.cancelled; }
+    finally { ODataUI.progress = original; }
+    ok(cancelClicked && stopped && !dialog(), "Cancel during worker entity analysis closes the progress window without returning rows");
+    ok(snapshot() === previous, "Canceling cached analysis leaves the disk snapshot intact");
+    ODataJava.write(root + "/work/discovery-limits-smoke-result.json", JSON.stringify({status: "passed", checks: checks}, null, 2));
+    console.log("ODATA_DISCOVERY_LIMITS_SMOKE_PASSED: " + checks.length);
+}());

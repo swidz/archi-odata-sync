@@ -5,6 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const metadata = fs.readFileSync(path.join(root, 'tests/fixtures/metadata.xml'));
 const service = fs.readFileSync(path.join(root, 'tests/fixtures/service.json'));
+const branching = fs.readFileSync(path.join(root, 'tests/fixtures/branching-metadata.xml'));
 let tokenRequests = 0, renewed = false;
 const issued = new Set();
 const requests = {};
@@ -37,6 +38,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (route === '/stats') { res.writeHead(200); return res.end(JSON.stringify({tokenRequests, requests})); }
+  if (route === '/branching/') {
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    return res.end(JSON.stringify({value: [{name: 'Roots', url: 'Roots'}]}));
+  }
+  if (route === '/branching/$metadata') { res.writeHead(200, {'Content-Type': 'application/xml'}); return res.end(branching); }
   if (route.startsWith('/cache-case-') && route.endsWith('/$metadata')) {
     const version = requests[route];
     if (version === 3) { res.writeHead(503); return res.end('unavailable'); }

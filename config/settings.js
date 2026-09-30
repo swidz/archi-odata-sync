@@ -8,5 +8,8 @@ var ODATA_SETTINGS = {
     connectTimeoutSeconds: 20,
     requestTimeoutSeconds: 60,
     // 256 MiB: large ERP services can publish metadata well above 32 MiB.
-    maxResponseBytes: 268435456
+    maxResponseBytes: 268435456,
+    // Bound complex-field expansion as well as raw downloads. Both include navigation fields.
+    maxExpandedFieldsPerEntity: 10000,
+    maxTotalExpandedFields: 500000
 };
